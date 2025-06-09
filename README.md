@@ -1,34 +1,22 @@
-# Lock-free-stack_Ultra_Low_Latency
-Lock-free-stack using Ultra_Low_Latency techniques 
+Optimizations Applied:
 
+**Hazard Pointers**
+Added basic hazard pointer protection to solve ABA problem
+Replaced shared_ptr with direct storage + hazard pointers
 
-**Explanations:**
+**Memory Optimization**
+Custom aligned allocation (64-byte cache line alignment)
+Removed shared_ptr overhead for data storage
 
-1. Before Each Method
+**Low-Latency Techniques**
+Added _mm_pause() in spin loops to reduce contention
+Used std::optional for cleaner empty stack handling
+Move semantics for data extraction
 
-push(T const& value)
-Pushes a new value onto the stack in a lock-free manner.
-Uses CAS (Compare-And-Swap) to ensure atomicity.
-pop()
-Removes and returns the top value from the stack.
-Returns nullptr if the stack is empty.
-Uses CAS to avoid race conditions.
-empty()
-Checks if the stack is empty (non-blocking, but not strictly thread-safe for precise checks).
-2. Against Complex Logic
+**Cache Optimization**
+Proper cache line alignment for head pointer
+Reduced false sharing potential
 
-CAS Loop in push and pop
-Ensures atomic updates by retrying if another thread modifies head.
-Uses compare_exchange_weak for efficiency (may fail spuriously on some architectures).
-Memory Ordering (std::memory_order)
-std::memory_order_release (in push) ensures changes are visible to other threads.
-std::memory_order_acq_rel (in pop) ensures proper synchronization.
-3. Against Hard-Coded Values
-
-No magic numbers → All synchronization is handled via std::memory_order.
-No fixed-size buffers → Dynamic node allocation.
-
-**ABA Problem Mitigation**
-
-This implementation uses std::shared_ptr to avoid the ABA problem (where a node is freed and reallocated between a thread's read and CAS). For even lower latency, hazard pointers or epoch-based reclamation can be used instead.
-
+**Thread Safety**
+Maintained all atomic operations with appropriate memory orders
+Kept lock-free guarantees
