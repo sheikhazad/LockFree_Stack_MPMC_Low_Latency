@@ -1,112 +1,146 @@
 #include <atomic>
-#include <memory>
 #include <iostream>
 #include <thread>
-#include <vector>
+#include <optional>
+#include <cstdlib>
+#include <exception>
 
-// Lock-free stack using atomic operations (ABA-safe via std::shared_ptr)
+inline void cpu_pause() {
+    #if defined(__x86_64__) || defined(__i386__)
+        asm volatile("pause" ::: "memory");
+    #elif defined(__aarch64__)
+        asm volatile("yield" ::: "memory");
+    #else
+        std::this_thread::yield();
+    #endif
+}
+
 template <typename T>
 class LockFreeStack {
 private:
-    // Node structure for the stack
     struct Node {
-        std::shared_ptr<T> data;  // Store data in shared_ptr for automatic memory management
+        T data;
         Node* next;
-
-        // Constructor initializes data and next pointer
-        explicit Node(T const& value) : data(std::make_shared<T>(value)), next(nullptr) {}
+        
+        explicit Node(const T& value) : data(value), next(nullptr) {}
+        
+        static void* operator new(size_t size) {
+            if (void* ptr = std::aligned_alloc(64, size)) {
+                return ptr;
+            }
+            throw std::bad_alloc();
+        }
+        
+        static void operator delete(void* ptr) {
+            std::free(ptr);
+        }
     };
 
-    // Atomic head pointer for thread-safe operations
-    std::atomic<Node*> head;
+    alignas(64) std::atomic<Node*> head{nullptr};
+    std::atomic<bool> shutdown_flag{false};
 
 public:
-    // Pushes a new value onto the stack
-    void push(T const& value) {
-        // 1. Create a new node with the given value
+    ~LockFreeStack() {
+        shutdown_flag.store(true, std::memory_order_release);
+        while (pop()); // Drain stack
+    }
+
+    void push(const T& value) {
+        if (shutdown_flag.load(std::memory_order_acquire)) {
+            return;
+        }
+        
         Node* new_node = new Node(value);
-
-        // 2. Set new_node->next to the current head (atomic load)
         new_node->next = head.load(std::memory_order_relaxed);
-
-        // 3. CAS (Compare-And-Swap) loop to update head atomically
-        //    - If head == new_node->next, update head to new_node
-        //    - If not, retry with the new head
+        
         while (!head.compare_exchange_weak(
             new_node->next,
             new_node,
-            std::memory_order_release,  // Ensures proper synchronization
-            std::memory_order_relaxed    // Relaxed for the failure case
+            std::memory_order_release,
+            std::memory_order_relaxed
         )) {
-            // Loop until CAS succeeds (lock-free retry)
+            if (shutdown_flag.load(std::memory_order_acquire)) {
+                delete new_node;
+                return;
+            }
+            cpu_pause();
         }
     }
 
-    // Pops the top value from the stack (returns nullptr if empty)
-    std::shared_ptr<T> pop() {
-        // 1. Load the current head atomically
+    std::optional<T> pop() {
         Node* old_head = head.load(std::memory_order_relaxed);
-
-        // 2. CAS loop to safely remove the head node
-        while (old_head &&
-               !head.compare_exchange_weak(
-                   old_head,
-                   old_head->next,
-                   std::memory_order_acq_rel,  // Ensures proper synchronization
-                   std::memory_order_relaxed    // Relaxed for the failure case
-               )) {
-            // Loop until CAS succeeds (lock-free retry)
+        
+        while (old_head) {
+            if (shutdown_flag.load(std::memory_order_acquire)) {
+                return std::nullopt;
+            }
+            
+            Node* next = old_head->next;
+            if (head.compare_exchange_strong(
+                old_head,
+                next,
+                std::memory_order_acq_rel,
+                std::memory_order_relaxed
+            )) {
+                T result = std::move(old_head->data);
+                delete old_head;
+                return result;
+            }
+            cpu_pause();
+            old_head = head.load(std::memory_order_relaxed);
         }
-
-        // 3. If stack was empty, return nullptr
-        if (!old_head) {
-            return nullptr;
-        }
-
-        // 4. Extract data and delete the node (memory cleanup)
-        std::shared_ptr<T> res(old_head->data);
-        delete old_head;
-        return res;
+        return std::nullopt;
     }
 
-    // Checks if the stack is empty (not thread-safe for precise checks)
     bool empty() const {
         return head.load(std::memory_order_relaxed) == nullptr;
     }
 };
 
-// Example usage in a high-frequency trading (HFT) scenario
 int main() {
-    LockFreeStack<int> stack;
-
-    // Producer thread: Push orders onto the stack
-    auto producer = [&stack]() {
-        for (int i = 0; i < 10; ++i) {
-            stack.push(i);  // Simulate order placement
-            std::cout << "Produced: " << i << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Simulate latency to mimic network/processing latency.
-        }
-    };
-
-    // Consumer thread: Process orders (e.g., matching engine)
-    auto consumer = [&stack]() {
-        while (true) {
-            auto order = stack.pop();
-            if (order) {
-                std::cout << "Consumed: " << *order << std::endl;
-            } else if (stack.empty()) {
-                break;  // Exit when stack is empty
+    try {
+        LockFreeStack<int> stack;
+        
+        auto producer = [&stack]() {
+            try {
+                for (int i = 0; i < 10; ++i) {
+                    stack.push(i);
+                    std::cout << "Pushed: " << i << std::endl;
+                }
+            } catch (...) {
+                std::cerr << "Producer thread error" << std::endl;
             }
-            // Busy-wait (replace with backoff in real HFT)
-        }
-    };
-
-    // Run threads
-    std::thread producer_thread(producer);
-    std::thread consumer_thread(consumer);
-
-    producer_thread.join();
-    consumer_thread.join();
-
+        };
+        
+        auto consumer = [&stack]() {
+            try {
+                while (true) {
+                    if (auto val = stack.pop()) {
+                        std::cout << "Popped: " << *val << std::endl;
+                    } else if (stack.empty()) {
+                        break;
+                    }
+                    cpu_pause();
+                }
+            } catch (...) {
+                std::cerr << "Consumer thread error" << std::endl;
+            }
+        };
+        
+        std::thread producer_thread(producer);
+        std::thread consumer_thread(consumer);
+        
+        // Proper thread cleanup
+        producer_thread.join();
+        consumer_thread.join();
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Main error: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cerr << "Unknown error" << std::endl;
+        return 1;
+    }
+    
     return 0;
 }
