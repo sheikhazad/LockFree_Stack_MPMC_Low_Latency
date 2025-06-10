@@ -1,6 +1,7 @@
 # Lock-free-stack_Ultra_Low_Latency
 Lock-free-stack using Ultra_Low_Latency techniques 
 
+**For Ultra faster version, switch to branch Faster_With_Hazard_Pointer**
 
 **Explanations:**
 
