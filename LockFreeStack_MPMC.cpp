@@ -4,7 +4,11 @@
 #include <thread>
 #include <vector>
 #include <cassert>
-#include <mutex>
+//#include <immintrin.h> // Required for _mm_pause
+#define _GNU_SOURCE  // Required for CPU affinity functions
+#include <sched.h>   // Contains cpu_set_t definition
+#include <pthread.h> // Required for pthread_setaffinity_np()
+
 
 // Align nodes to cache lines to avoid false sharing
 #ifndef hardware_destructive_interference_size
@@ -39,14 +43,20 @@ public:
             std::memory_order_release,
             std::memory_order_relaxed
         )) {
-            // Optional: Add brief pause (_mm_pause()) for contention
+            // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
+            //_mm_pause();  // Use _mm_pause() for x86, or std::this_thread::yield() for portability
+            std::this_thread::yield(); // Yield to allow other threads to progress
         }
     }
 
     // Pop with no shared_ptr overhead (returns T directly via optional)
     bool pop(T& out) {
         Node* old_head = head.load(std::memory_order_relaxed);
-        if (old_head) __builtin_prefetch(old_head->next, 0, 1);  // Optional: GCC/Clang prefetch
+        // Optional: Prefetch node to improve cache locality
+        if (old_head){  
+             __builtin_prefetch(old_head,0,1); //Accessing a pointer in if() doesn't necessarily load its referenced data, so prefetch it
+             __builtin_prefetch(old_head->next, 0, 1);  
+        }
         
         while (old_head != nullptr) {
             if (head.compare_exchange_weak(
@@ -70,15 +80,14 @@ public:
     }
 
     ~LockFreeStack() {
-        //Add a mutex (non-critical path)
-        std::lock_guard<std::mutex> lock(cleanup_mutex);
-        Node* current = head.load(std::memory_order_relaxed);
+        Node* current = head.exchange(nullptr, std::memory_order_acquire);
         while (current) {
-            Node* next = current->next;
-            delete current;
-            current = next;
-        }
+           Node* next = current->next;
+           delete current;
+           current = next;
+       }
     }
+
 
     // Disable copy operations
     LockFreeStack(const LockFreeStack&) = delete;
@@ -117,29 +126,56 @@ public:
 
 int main() {
     LockFreeStack<int> stack;
+    constexpr int NUM_PRODUCERS = 4;
+    constexpr int NUM_CONSUMERS = 4;
+    constexpr int WORKLOAD = 1000;
 
-    // Producer (market data feed)
-    auto producer = [&stack]() {
-        for (int i = 0; i < 1000; ++i) {
-            stack.push(i);  // In HFT, batch pushes are better
-        }
-    };
-
-    // Consumer (matching engine)
-    auto consumer = [&stack]() {
-        int value;
-        while (stack.pop(value)) {  // No shared_ptr overhead
-            // Process order (e.g., match trades)
-        }
-    };
-
-    // Run 4 producers and 4 consumers (MPMC test)
     std::vector<std::thread> threads;
-    for (int i = 0; i < 4; ++i) {
-        threads.emplace_back(producer);
-        threads.emplace_back(consumer);
+
+    // Producers
+    for (int i = 0; i < NUM_PRODUCERS; ++i) {
+        threads.emplace_back([i, &stack]() { 
+
+            /*Optional: Use NUMA-Aware Thread Placement
+              Since HFT workloads often run on multi-socket machines, pinning producer and 
+              consumer threads to dedicated cores can reduce cache-line contention.
+              */
+
+            /* Available for Linux systems, for windows use SetThreadAffinityMask()
+            // Set CPU affinity to bind thread to a specific core
+            // This is optional and can be adjusted based on the system's architecture
+            // This example uses a round-robin assignment based on thread index *
+            cpu_set_t cpuset; 
+            CPU_ZERO(&cpuset);
+            CPU_SET(i % std::thread::hardware_concurrency(), &cpuset); // Assign core based on thread index
+            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+            */
+            
+            for (int j = 0; j < WORKLOAD; ++j) {
+                stack.push(j);  // Push data (batch processing can be added)
+            }
+        });
     }
-    for (auto& t : threads) t.join();
+
+    // Consumers
+    for (int i = 0; i < NUM_CONSUMERS; ++i) {
+        threads.emplace_back([i, &stack]() { 
+            /*
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET((i + NUM_PRODUCERS) % std::thread::hardware_concurrency(), &cpuset); // Assign core for consumers
+            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+            */
+            int value;
+            while (stack.pop(value)) {  // Process data
+            }
+        });
+    }
+
+    // Join threads
+    for (auto& t : threads) {
+        t.join();
+    }
 
     return 0;
 }
