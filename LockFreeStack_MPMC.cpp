@@ -14,6 +14,15 @@
 #ifndef hardware_destructive_interference_size
 #define hardware_destructive_interference_size 64
 #endif
+
+constexpr int NUM_PRODUCERS = 4;
+constexpr int NUM_CONSUMERS = 4;
+constexpr int WORKLOAD = 1000;
+
+// NUMA node assignments
+constexpr int NUMA_NODE_0 = 0;  // Producers on NUMA node 0
+constexpr int NUMA_NODE_1 = 1;  // Consumers on NUMA node 1
+
 constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
 
 
@@ -23,22 +32,22 @@ class LockFreeStack {
 private:
     struct alignas(CACHE_LINE_SIZE) Node {
         T data;          // Store data directly (avoid shared_ptr overhead)
-        Node* next;
-
+        std::atomic<Node*> next; //Two threads modifying next concurrently leads to data races or even segmentation faults.
         explicit Node(T const& value) : data(value), next(nullptr) {}
     };
 
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
-    std::mutex cleanup_mutex;  // Mutex for cleanup (non-critical path)
     
 public:
     
     void push(T const& value) {
         Node* new_node = new Node(value);  // In HFT, use a memory pool
-        new_node->next = head.load(std::memory_order_relaxed);
+        //new_node->next = head.load(std::memory_order_relaxed);
+        Node* expected_next = head.load(std::memory_order_relaxed);  // Load atomically
+        new_node->next.store(expected_next, std::memory_order_release);  // Store atomically
 
         while (!head.compare_exchange_weak(
-            new_node->next,
+            expected_next,
             new_node,
             std::memory_order_release,
             std::memory_order_relaxed
@@ -55,13 +64,17 @@ public:
         // Optional: Prefetch node to improve cache locality
         if (old_head){  
              __builtin_prefetch(old_head,0,1); //Accessing a pointer in if() doesn't necessarily load its referenced data, so prefetch it
-             __builtin_prefetch(old_head->next, 0, 1);  
+             //__builtin_prefetch(old_head->next, 0, 1);  
+             __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);  // ✅ Safe atomic load
+  
         }
         
         while (old_head != nullptr) {
+            Node* next = old_head->next.load(std::memory_order_acquire);  // ✅ Explicitly load atomic `next`
+
             if (head.compare_exchange_weak(
                 old_head,
-                old_head->next,
+                next,
                 std::memory_order_acq_rel,
                 std::memory_order_relaxed
             )) {
@@ -124,33 +137,46 @@ public:
 };
 
 
-int main() {
-    LockFreeStack<int> stack;
-    constexpr int NUM_PRODUCERS = 4;
-    constexpr int NUM_CONSUMERS = 4;
-    constexpr int WORKLOAD = 1000;
+ /*Optional: NUMA-aware CPU pinning function
+              Since HFT workloads often run on multi-socket machines, pinning producer and 
+              consumer threads to dedicated cores can reduce cache-line contention.
+              */
+// This function pins a thread to a specific core within a NUMA node
+void pinThreadToCore(int threadIndex, int numaNode) {
+   
 
+        /* Available for Linux systems, for windows use SetThreadAffinityMask()
+        // Set CPU affinity to bind thread to a specific core
+        // This is optional and can be adjusted based on the system's architecture
+        // This example uses a round-robin assignment based on thread index 
+        */
+    // Create a CPU set to hold the core assignment
+    // Note: NUMA_NODE_0 and NUMA_NODE_1 are defined as constants for producer and consumer threads
+    //cpu_set_t cpuset;  //1
+    //CPU_ZERO(&cpuset); //2
+
+    // Assign cores in round-robin within the specified NUMA node
+    // Calculate core ID based on thread index and NUMA node
+    // For example, if NUMA_NODE_0 has cores 0-3 and NUMA_NODE_1 has cores 4-7,
+    // this will assign producers to cores 0-3 and consumers to cores 4-7.
+    // This is a simple example; in practice, you may want to use a more sophisticated mapping    
+    //int core_id = (threadIndex % std::thread::hardware_concurrency()) + (numaNode * (NUM_PRODUCERS + NUM_CONSUMERS));
+    //CPU_SET(core_id, &cpuset); //3
+    // Set the thread affinity to the specified core
+    //pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);//4
+}
+
+int main() {
+
+    LockFreeStack<int> stack;
     std::vector<std::thread> threads;
 
     // Producers
     for (int i = 0; i < NUM_PRODUCERS; ++i) {
         threads.emplace_back([i, &stack]() { 
-
-            /*Optional: Use NUMA-Aware Thread Placement
-              Since HFT workloads often run on multi-socket machines, pinning producer and 
-              consumer threads to dedicated cores can reduce cache-line contention.
-              */
-
-            /* Available for Linux systems, for windows use SetThreadAffinityMask()
-            // Set CPU affinity to bind thread to a specific core
-            // This is optional and can be adjusted based on the system's architecture
-            // This example uses a round-robin assignment based on thread index *
-            cpu_set_t cpuset; 
-            CPU_ZERO(&cpuset);
-            CPU_SET(i % std::thread::hardware_concurrency(), &cpuset); // Assign core based on thread index
-            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-            */
             
+           pinThreadToCore(i, NUMA_NODE_0); // Assign producer to NUMA node 0
+
             for (int j = 0; j < WORKLOAD; ++j) {
                 stack.push(j);  // Push data (batch processing can be added)
             }
@@ -160,12 +186,9 @@ int main() {
     // Consumers
     for (int i = 0; i < NUM_CONSUMERS; ++i) {
         threads.emplace_back([i, &stack]() { 
-            /*
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET((i + NUM_PRODUCERS) % std::thread::hardware_concurrency(), &cpuset); // Assign core for consumers
-            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-            */
+
+            pinThreadToCore(i, NUMA_NODE_1); // Assign consumer to NUMA node 1
+
             int value;
             while (stack.pop(value)) {  // Process data
             }
