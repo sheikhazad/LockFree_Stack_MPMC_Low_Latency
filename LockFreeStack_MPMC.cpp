@@ -103,30 +103,37 @@ public:
     // This method is not thread-safe
     // It is designed for scenarios where the caller can guarantee that no other threads
     // are modifying the stack while this method is called.
-    void push_bulk(const std::vector<T>& values) {
-        Node* first = nullptr;
-        Node* last = nullptr;
     
-        for (const auto& v : values) {
-            Node* new_node = new Node(v);
-            if (!first) first = new_node;
-            if (last) last->next.store(new_node, std::memory_order_release); // Safe atomic store
-            last = new_node;
+    void push_bulk_thread_safe(const std::vector<T>& values) {
+
+        //concurrent bulk inserts could cause inconsistencies.
+        //Fix: Use per-thread batching queues to avoid race conditions:
+        static thread_local std::vector<Node*> local_batch;
+        if (local_batch.empty()) {
+            local_batch.reserve(values.size());
         }
-    
+
+        for (const auto& v : values) {
+            local_batch.emplace_back(new Node(v));
+        }
+        
+        Node* first = local_batch.front();
+        Node* last = local_batch.back();
         Node* expected_head = head.load(std::memory_order_relaxed);
+        
         last->next.store(expected_head, std::memory_order_release);
-    
         while (!head.compare_exchange_weak(expected_head, first, std::memory_order_release, std::memory_order_relaxed)) {
-            expected_head = head.load(std::memory_order_relaxed);  // Reload expected head
-            
+            // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
             #ifdef __x86_64__
             _mm_pause();  // Lower latency than yield()
             #else
             std::this_thread::yield();
-            #endif // Yield to reduce contention
+            #endif  // Yield to reduce contention
         }
-    }
+        // Clear the local batch after successful push
+        local_batch.clear();
+    }   
+
     
 };
 
