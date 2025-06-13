@@ -44,9 +44,11 @@ public:
         while (!head.compare_exchange_weak(expected_next, new_node, 
                 std::memory_order_release, std::memory_order_relaxed)) {
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
-            //_mm_pause();  // Use _mm_pause() for x86, or std::this_thread::yield() for portability
-            //_mm_pause() is Lower overhead than std::this_thread::yield()
-            std::this_thread::yield();  // Yield to reduce contention
+            #ifdef __x86_64__
+            _mm_pause();  // Lower latency than yield()
+            #else
+            std::this_thread::yield();
+            #endif  // Yield to reduce contention
         }
     }
 
@@ -117,8 +119,12 @@ public:
     
         while (!head.compare_exchange_weak(expected_head, first, std::memory_order_release, std::memory_order_relaxed)) {
             expected_head = head.load(std::memory_order_relaxed);  // Reload expected head
-           // _mm_pause(); // Reduce contention
-           std::this_thread::yield(); // Yield to reduce contention
+            
+            #ifdef __x86_64__
+            _mm_pause();  // Lower latency than yield()
+            #else
+            std::this_thread::yield();
+            #endif // Yield to reduce contention
         }
     }
     
