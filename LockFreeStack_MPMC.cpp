@@ -104,20 +104,24 @@ public:
     void push_bulk(const std::vector<T>& values) {
         Node* first = nullptr;
         Node* last = nullptr;
+    
         for (const auto& v : values) {
             Node* new_node = new Node(v);
             if (!first) first = new_node;
-            if (last) last->next.store(new_node, std::memory_order_release);
+            if (last) last->next.store(new_node, std::memory_order_release); // Safe atomic store
             last = new_node;
         }
-
+    
         Node* expected_head = head.load(std::memory_order_relaxed);
         last->next.store(expected_head, std::memory_order_release);
+    
         while (!head.compare_exchange_weak(expected_head, first, std::memory_order_release, std::memory_order_relaxed)) {
-            //_mm_pause();  // Reduce contention
-            std::this_thread::yield();
+            expected_head = head.load(std::memory_order_relaxed);  // Reload expected head
+           // _mm_pause(); // Reduce contention
+           std::this_thread::yield(); // Yield to reduce contention
         }
     }
+    
 };
 
  /*Optional: NUMA-aware CPU pinning function
