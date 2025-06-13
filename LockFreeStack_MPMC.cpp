@@ -70,7 +70,8 @@ public:
         }
         
         while (old_head != nullptr) {
-            Node* next = old_head->next.load(std::memory_order_acquire);  // ✅ Explicitly load atomic `next`
+            
+            Node* next = old_head->next.load(std::memory_order_acquire);  // Ensures proper visibility for other consumers
 
             if (head.compare_exchange_weak(
                 old_head,
@@ -122,18 +123,28 @@ public:
     // This method is not thread-safe
     // It is designed for scenarios where the caller can guarantee that no other threads
     // are modifying the stack while this method is called.
-    void push_bulk(const std::vector<T>& values) {
+    void push_bulk(const std::vector<T>& values) 
+    {
         Node* first = nullptr;
         Node* last = nullptr;
         for (const auto& v : values) {
             Node* new_node = new Node(v);
             if (!first) first = new_node;
-            if (last) last->next = new_node;
+            if (last) last->next.store(new_node, std::memory_order_release);  // Use atomic store for next
             last = new_node;
         }
-        last->next = head.load(std::memory_order_relaxed);
-        while (!head.compare_exchange_weak(last->next, first, std::memory_order_release, std::memory_order_relaxed)) {}
+
+        Node* expected_head = head.load(std::memory_order_relaxed);
+        last->next.store(expected_head, std::memory_order_release); // Store atomically
+        while (!head.compare_exchange_weak(expected_head, first, std::memory_order_release, std::memory_order_relaxed)) 
+        {
+            //_mm_pause();  // Reduce contention
+            std::this_thread::yield(); // Yield to allow other threads to progress
+            // Retry if the head has changed
+        }
+
     }
+
 };
 
 
@@ -165,6 +176,7 @@ void pinThreadToCore(int threadIndex, int numaNode) {
     // Set the thread affinity to the specified core
     //pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);//4
 }
+
 
 int main() {
 
