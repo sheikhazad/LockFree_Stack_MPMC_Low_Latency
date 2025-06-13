@@ -156,7 +156,10 @@ void pinThreadToCore(int threadIndex, int numaNode) {
     // this will assign producers to cores 0-3 and consumers to cores 4-7.
     // This is a simple example; in practice, you may want to use a more sophisticated mapping 
 
-    int core_id = (threadIndex % NUM_PRODUCERS) + (numaNode * NUM_PRODUCERS); //3
+    int cores_per_node = std::thread::hardware_concurrency() //3.1;
+    int core_id = (threadIndex % cores_per_node) + (numaNode * cores_per_node); //3.2
+    // Ensure core_id is within valid range
+    assert(core_id < std::thread::hardware_concurrency()); //3.3
     CPU_SET(core_id, &cpuset); //4
     pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset); //5
     */
