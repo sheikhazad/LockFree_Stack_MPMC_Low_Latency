@@ -37,12 +37,34 @@ public:
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
         
-        //new_node->next = head.load(std::memory_order_relaxed);
+        //1. No need for strcit memory order here, expected_node can hold stale value. 
+        //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
+        //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
+        //new_node->next = head.load(std::memory_order_relaxed); 
         Node* expected_next = head.load(std::memory_order_relaxed);
+
+        //2. We are publishing here and std::memory_order_release is required to maintain consistency between new_node 
+        //and what it's internal pointer points i.e. new_node->next
+        //This ensures that any thread that reads (like pop() ) new_node also see correct value of new_node->next when CAS is successful
+        //(whebn new_node becomes part of the stack and becomes head).
         new_node->next.store(expected_next, std::memory_order_release);
 
+        //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
+        //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
+        //and the loop will retry with the new expected_next.
+        //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
+        //The loop will continue until the head is successfully updated to point to new_node.
+
+        //3. While std::memory_order_release will give correct results through retries until correct value is seen, 
+        //it's more correct to use std::memory_order_acquire for the failure case in CAS. 
+        //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
+        //expected_next will be updated with the new head value released by other thread.
         while (!head.compare_exchange_weak(expected_next, new_node, 
-                std::memory_order_release, std::memory_order_relaxed)) {
+                std::memory_order_release,  //Successful CAS will release the new_node
+                // std::memory_order_relaxed)
+                std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
+              ) 
+            {
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
             #ifdef __x86_64__
             _mm_pause();  // Lower latency than yield()
