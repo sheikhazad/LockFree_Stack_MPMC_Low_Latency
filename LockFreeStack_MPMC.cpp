@@ -79,8 +79,8 @@ public:
         if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
 
         while (old_head) {
-            Node* next = old_head->next.load(std::memory_order_acquire);
-            if (head.compare_exchange_weak(old_head, next, 
+            Node* new_head = old_head->next.load(std::memory_order_acquire);
+            if (head.compare_exchange_weak(old_head, new_head, 
                     std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 out = old_head->data;
                 delete old_head;
