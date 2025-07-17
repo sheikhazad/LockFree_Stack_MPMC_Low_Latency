@@ -41,13 +41,13 @@ public:
         //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
         //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
-        Node* expected_next = head.load(std::memory_order_relaxed);
+        Node* expected_head = head.load(std::memory_order_relaxed);
 
         //2. We are publishing here and std::memory_order_release is required to maintain consistency between new_node 
         //and what it's internal pointer points i.e. new_node->next
         //This ensures that any thread that reads (like pop() ) new_node also see correct value of new_node->next when CAS is successful
         //(whebn new_node becomes part of the stack and becomes head).
-        new_node->next.store(expected_next, std::memory_order_release);
+        new_node->next.store(expected_head, std::memory_order_release);
 
         //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
         //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
@@ -59,7 +59,7 @@ public:
         //it's more correct to use std::memory_order_acquire for the failure case in CAS. 
         //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
         //expected_next will be updated with the new head value released by other thread.
-        while (!head.compare_exchange_weak(expected_next, new_node, 
+        while (!head.compare_exchange_weak(expected_head, new_node, 
                 std::memory_order_release,  //Successful CAS will release the new_node
                 // std::memory_order_relaxed)
                 std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
