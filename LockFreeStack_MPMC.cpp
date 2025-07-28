@@ -65,6 +65,7 @@ public:
                 std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
               ) 
             {
+            new_node->next.store(expected_head, std::memory_order_release);
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
             #ifdef __x86_64__
             _mm_pause();  // Lower latency than yield()
