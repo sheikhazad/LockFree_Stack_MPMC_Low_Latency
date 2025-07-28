@@ -81,17 +81,26 @@ private:
     }
 
 public:
+    //For memory order explanation: See LockFreeStack_MPMC.cpp
     void push(T value) {
         Node* new_node = pool.allocate(value);
         Node* expected_head = head.load(std::memory_order_relaxed);
-        new_node->next.store(expected_head, std::memory_order_relaxed);
-
         unsigned backoff = 1;
-        while (!head.compare_exchange_weak(expected_head, new_node, std::memory_order_release, std::memory_order_acquire))
-       {
+
+        //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
+        while (true)
+        {
             new_node->next.store(expected_head, std::memory_order_relaxed);
-            for (unsigned i = 0; i < backoff; ++i) 
+            if (head.compare_exchange_weak(expected_head, new_node, std::memory_order_release, std::memory_order_acquire)) 
+            {
+                //new_node->retirement_epoch = thread_epoch;
+                //deferred_deletion_list.push_back(new_node);
+                break; // Successfully pushed the new node
+                
+            }
+            for (unsigned i = 0; i < backoff; ++i) {
                 std::this_thread::yield();
+            }
             backoff = std::min(backoff * 2, 1024u);
         }
         advance_epoch();
