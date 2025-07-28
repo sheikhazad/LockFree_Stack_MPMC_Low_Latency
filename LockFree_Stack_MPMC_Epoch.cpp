@@ -47,7 +47,7 @@ private:
             //return node ? node : new Node(val);
             while(node)
             {
-                Node* next = node->next.load(std::memory_order_acquire);
+                Node* next = node->next.load(std::memory_order_relaxed);
                 if(free_list.compare_exchange_weak(node, next, 
                     std::memory_order_release,  // On success
                     std::memory_order_acquire)) // On failure
