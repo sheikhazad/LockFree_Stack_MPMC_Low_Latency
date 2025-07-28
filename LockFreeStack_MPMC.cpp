@@ -43,34 +43,33 @@ public:
         //new_node->next = head.load(std::memory_order_relaxed); 
         Node* expected_head = head.load(std::memory_order_relaxed);
 
-        //2. This store doesn’t need memory_order_release because it’s not publishing shared data yet.
-        //It just builds the pointer chain for the stack. 
-        //At this point, new_node isn’t visible to other threads. 
-        //It will be visible only after successful CAS.
-        //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
-        //(especially node->data = value) before publication.
-        new_node->next.store(expected_head, std::memory_order_relaxed);
-        
-
-        //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
-        //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
-        //and the loop will retry with the new expected_next.
-        //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
-        //The loop will continue until the head is successfully updated to point to new_node.
-
-        //3. While std::memory_order_release will give correct results through retries until correct value is seen, 
-        //it's more correct to use std::memory_order_acquire for the failure case in CAS. 
-        //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
-        //expected_next will be updated with the new head value released by other thread.
-        while (!head.compare_exchange_weak(expected_head, new_node, 
-                std::memory_order_release,  //Successful CAS will release the new_node                
-                std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
-              ) 
-            {
-            
-            //4. As explained above                
+        //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
+        while(true){
+            //2. This store doesn’t need memory_order_release because it’s not publishing shared data yet.
+            //It just builds the pointer chain for the stack. 
+            //At this point, new_node isn’t visible to other threads. 
+            //It will be visible only after successful CAS.
+            //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
+            //(especially node->data = value) before publication.
             new_node->next.store(expected_head, std::memory_order_relaxed);
-                
+        
+            //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
+            //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
+            //and the loop will retry with the new expected_next.
+            //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
+            //The loop will continue until the head is successfully updated to point to new_node.
+    
+            //3. While std::memory_order_release will give correct results through retries until correct value is seen, 
+            //it's more correct to use std::memory_order_acquire for the failure case in CAS. 
+            //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
+            //expected_next will be updated with the new head value released by other thread.
+            if(head.compare_exchange_weak(expected_head, new_node, 
+                    std::memory_order_release,  //Successful CAS will release the new_node                
+                    std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
+                  ) 
+            {
+                break; // Successfully pushed the new node
+            }       
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
             #ifdef __x86_64__
             _mm_pause();  // Lower latency than yield()
