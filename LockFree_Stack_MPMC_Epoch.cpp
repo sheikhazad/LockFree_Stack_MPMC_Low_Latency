@@ -25,7 +25,7 @@ private:
         T data;
         std::atomic<Node*> next;
         int retirement_epoch;
-        explicit Node(T val) : data(val), next(nullptr), retirement_epoch(-1) {}
+        explicit Node(const T& val) : data(val), next(nullptr), retirement_epoch(-1) {}
     };
 
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};
@@ -36,9 +36,30 @@ private:
         std::atomic<Node*> free_list{nullptr};
     public:
         Node* allocate(T val) {
-            Node* node = free_list.load(std::memory_order_acquire);
-            while (node && !free_list.compare_exchange_weak(node, node->next, std::memory_order_acq_rel)) {}
-            return node ? node : new Node(val);
+            Node* node = free_list.load(std::memory_order_relaxed);
+
+            //while (node && !free_list.compare_exchange_weak(node, node->next, std::memory_order_acq_rel)) {}
+            //Above while look() is wrong becaue:
+            //node->next is read outside the CAS (Compare-And-Swap) loop, 
+            //but another thread could modify it after the read but before the CAS succeeds.
+            //This can lead to corrupted memory if node->next changes unexpectedly.
+
+            //return node ? node : new Node(val);
+            while(node)
+            {
+                Node* next = node->next.load(std::memory_order_acquire);
+                if(free_list.compare_exchange_weak(node, next, 
+                    std::memory_order_release,  // On success
+                    std::memory_order_acquire)) // On failure
+                {
+                    //Reset before returning the node, preventing stale data.
+                    node->data = val; 
+                    node->next.store(nullptr, std::memory_order_relaxed);
+                    node->retirement_epoch = -1;
+                    return node;
+                }
+            }
+            return new Node(val); // Fallback if no free node available
         }
 
         void deallocate(Node* node) {
@@ -62,12 +83,13 @@ private:
 public:
     void push(T value) {
         Node* new_node = pool.allocate(value);
-        Node* expected = head.load(std::memory_order_relaxed);
-        new_node->next.store(expected, std::memory_order_relaxed);
+        Node* expected_head = head.load(std::memory_order_relaxed);
+        new_node->next.store(expected_head, std::memory_order_relaxed);
 
         unsigned backoff = 1;
-        while (!head.compare_exchange_weak(expected, new_node, std::memory_order_release, std::memory_order_relaxed)) {
-            new_node->next.store(expected, std::memory_order_relaxed);
+        while (!head.compare_exchange_weak(expected_head, new_node, std::memory_order_release, std::memory_order_acquire))
+       {
+            new_node->next.store(expected_head, std::memory_order_relaxed);
             for (unsigned i = 0; i < backoff; ++i) 
                 std::this_thread::yield();
             backoff = std::min(backoff * 2, 1024u);
@@ -85,9 +107,12 @@ public:
         }
 
         unsigned backoff = 1;
-        while (old_head) {
+        while (old_head) 
+        {
             Node* next = old_head->next.load(std::memory_order_acquire);
-            if (head.compare_exchange_weak(old_head, next, std::memory_order_acq_rel, std::memory_order_relaxed)) {
+            //if (head.compare_exchange_weak(old_head, next, std::memory_order_acq_rel, std::memory_order_relaxed)) 
+            if (head.compare_exchange_weak(old_head, next, std::memory_order_release, std::memory_order_acquire)) 
+            {
                 out = old_head->data;
                 old_head->retirement_epoch = thread_epoch;
                 deferred_deletion_list.push_back(old_head);
