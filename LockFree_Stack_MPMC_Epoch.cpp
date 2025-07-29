@@ -121,9 +121,16 @@ public:
         unsigned backoff = 1;
         while (old_head) 
         {
-            Node* next = old_head->next.load(std::memory_order_acquire);
-            //if (head.compare_exchange_weak(old_head, next, std::memory_order_acq_rel, std::memory_order_relaxed)) 
-            if (head.compare_exchange_weak(old_head, next, std::memory_order_release, std::memory_order_acquire)) 
+            //Acuire here is necessary because CAS() below checks only old_head but not its contents like next pointer.
+            //If we do not use acquire here, then other threads may modify old_head->next
+            //after we read old_head but before we call CAS() below, which means we may read a stale next pointer.
+            Node* new_head = old_head->next.load(std::memory_order_acquire);  
+    
+            //Push() published with memory_order_release, so pop() need to use memory_order_acq + rel because:
+            //new_head needs to be published to other threads           
+            if (head.compare_exchange_weak(old_head, new_head, 
+                std::memory_order_acq_rel, 
+                std::memory_order_acquire)) //On failure, we need to acquire the latest head
             {
                 out = old_head->data;
                 old_head->retirement_epoch = thread_epoch;
