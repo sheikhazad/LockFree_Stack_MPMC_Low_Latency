@@ -64,10 +64,9 @@ public:
             //once below CAS succeeds. 
             //So, previous writes do not need memory_order_release
 
-            ///std::memory_order_acquire means-
-            //any memory writes from another thread before their release operation (on the same atomic variable) 
-            //(published with memory_order_release)—are visible to me after this line. 
-            //It becomes a synchronization barrier—nothing after this line in current 
+            ///std::memory_order_acquire means-all the changes other threads did before their release operation
+            //(on the same atomic variable) (published with memory_order_release)—are visible to me after this line. 
+            //It becomes synchronization barrier—nothing after this line in current 
             //thread can be reordered to run before it.            
             if(head.compare_exchange_weak(expected_head, new_node, 
                     std::memory_order_release, //Successful CAS will release the new_node                
