@@ -109,22 +109,45 @@ public:
     }
 
     bool pop(T& out) {
+        
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
         if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
 
         while (old_head) {           
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
-            //next pointer was written before (C) in push() and so guranteed to see it after synchrnised by (D)
+            //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
             //We will still see A->B->C once synchronised by (D)
-            //So, no need for memory_order_acquire to load next pointer
-            Node* new_head = old_head->next.load(std::memory_order_relaxed);
+            //So, no need for memory_order_acquire to load next pointer in our case.
+            //Node* new_head = old_head->next.load(std::memory_order_relaxed);
             
+            //However,if you are not sure 100% that next pointer was updated only before release operation
+            //and next pointer may be updated after release operation, 
+            //then use memory_order_acquire for safety - to avoid stale next pointer. 
+            Node* new_head = old_head->next.load(std::memory_order_acquire); //(E)
+
+            //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
+            //That’s where we detach the node from shared memory and begin thread-local access. 
+            //Without an acquire on CAS success,we risk the compiler speculating reads (like old_head->data) before the CAS is confirmed.
+            //Compiler might transform this:
+            /*********
+            if (cas(..., release)) {
+                out = old_head->data;
+            }
+            // Into:
+            auto tmp = old_head->data;  // Speculative read!
+            if (cas(..., release)) {
+                out = tmp;  // Uses potentially invalid data
+            }*********/
+            //So, we need acquire in 3rd argument. Also release as we are removing node, saving then publishing.
+            //So, we use acquire + release = memory_order_acq_rel on Success
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, std::memory_order_acquire)) {
+                    std::memory_order_acq_rel, //(F-1) On Success 
+                    std::memory_order_acquire)) //(F-2) On failure, update old_head with latest correct head
+             {
                 out = old_head->data;
                 delete old_head;
                 return true;
-            }
+             }
         }
         return false;
     }
