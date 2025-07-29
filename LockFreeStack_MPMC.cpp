@@ -60,10 +60,10 @@ public:
             //The loop will continue until the head is successfully updated to point to new_node.
     
             //3. memory_order_release ensures all prior writes in this thread—including 
-            //new_node->next.store()—are visible to other threads that load with memory_order_acquire 
+            //new_node->next.store() and any non-atomic variable —are visible to other threads that load with memory_order_acquire 
             //once below CAS succeeds. 
             //So, previous writes do not need memory_order_release
-
+            
             ///std::memory_order_acquire means-all the changes other threads did before their release operation
             //(on the same atomic variable) (published with memory_order_release)—are visible to me after this line. 
             //It becomes synchronization barrier—nothing after this line in current 
@@ -77,6 +77,19 @@ public:
                 ▼        ▼
             Thread B's `acquire` sees X, Y
             */
+            /*********************Example*********************************
+            int data;  // Non-atomic
+            std::atomic<bool> ready{false};
+
+           // Thread A (Publisher):
+           data = 42;  // (1) Non-atomic write
+           ready.store(true, std::memory_order_release);  // (2) Publish
+
+           // Thread B (Consumer):
+           if (ready.load(std::memory_order_acquire)) {  // (3) Syncs-with (2)
+                assert(data == 42);  // (4) Guaranteed
+           }**********************************************************/
+
             if(head.compare_exchange_weak(expected_head, new_node, 
                     std::memory_order_release, //Successful CAS will release the new_node                
                     std::memory_order_acquire) //Failed CAS will acquire the expected_next, 
