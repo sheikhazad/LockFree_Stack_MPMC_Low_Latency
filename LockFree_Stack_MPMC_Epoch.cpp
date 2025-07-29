@@ -84,21 +84,19 @@ public:
     //For memory order explanation: See LockFreeStack_MPMC.cpp
     void push(T value) {
         Node* new_node = pool.allocate(value);
-        Node* expected_head = head.load(std::memory_order_relaxed);
+        Node* expected_head = head.load(std::memory_order_relaxed); 
         unsigned backoff = 1;
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
         while (true)
         {
-            new_node->next.store(expected_head, std::memory_order_relaxed);
-            
-            //Below CAS() release ensures all prior writes in this thread—including new_node->next.store()—are visible to 
-            //other threads that load with memory_order_acquire once below CAS succeeds. 
-            //So, previous writes do not need memory_order_release
-            if (head.compare_exchange_weak(expected_head, new_node, std::memory_order_release, std::memory_order_acquire)) 
+            new_node->next.store(expected_head, std::memory_order_relaxed);            
+            if (head.compare_exchange_weak(expected_head, new_node, 
+                std::memory_order_release,  //On Success
+                std::memory_order_acquire)) //On Failure
             {
-                //new_node->retirement_epoch = thread_epoch;
-                //deferred_deletion_list.push_back(new_node);
+                new_node->retirement_epoch = thread_epoch;
+                deferred_deletion_list.push_back(new_node);
                 break; // Successfully pushed the new node
                 
             }
@@ -112,7 +110,7 @@ public:
 
     bool pop(T& out) {
         thread_epoch = global_epoch.load(std::memory_order_acquire);
-        Node* old_head = head.load(std::memory_order_relaxed);
+        Node* old_head = head.load(std::memory_order_acquire); 
         
         if (old_head) {
             __builtin_prefetch(old_head, 0, 3);
@@ -121,11 +119,8 @@ public:
 
         unsigned backoff = 1;
         while (old_head) 
-        {
-            //Acuire here is necessary because CAS() below checks only old_head but not its contents like next pointer.
-            //If we do not use acquire here, then other threads may modify old_head->next
-            //after we read old_head but before we call CAS() below, which means we may read a stale next pointer.
-            Node* new_head = old_head->next.load(std::memory_order_acquire);  
+        {   
+            Node* new_head = old_head->next.load(std::memory_order_relaxed);  
     
             //Push() published with memory_order_release, so pop() need to use memory_order_acq + rel because:
             //new_head needs to be published to other threads           
