@@ -125,7 +125,7 @@ public:
             //Push() published with memory_order_release, so pop() need to use memory_order_acq + rel because:
             //new_head needs to be published to other threads           
             if (head.compare_exchange_weak(old_head, new_head, 
-                std::memory_order_acq_rel, 
+                std::memory_order_acq_rel, // On Success
                 std::memory_order_acquire)) //On failure, we need to acquire the latest head
             {
                 out = old_head->data;
