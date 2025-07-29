@@ -67,7 +67,16 @@ public:
             ///std::memory_order_acquire means-all the changes other threads did before their release operation
             //(on the same atomic variable) (published with memory_order_release)—are visible to me after this line. 
             //It becomes synchronization barrier—nothing after this line in current 
-            //thread can be reordered to run before it.            
+            //thread can be reordered to run before it.  
+            /*
+            Thread A (Writer)        Thread B (Reader)
+            Write X ────────┐        ┌─── "Show me everything before the release!"
+            Write Y         │        │
+            [release] Store ─────────┘
+                │        │
+                ▼        ▼
+            Thread B's `acquire` sees X, Y
+            */
             if(head.compare_exchange_weak(expected_head, new_node, 
                     std::memory_order_release, //Successful CAS will release the new_node                
                     std::memory_order_acquire) //Failed CAS will acquire the expected_next, 
