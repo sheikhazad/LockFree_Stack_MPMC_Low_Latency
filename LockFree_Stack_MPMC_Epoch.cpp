@@ -92,8 +92,9 @@ public:
         {
             new_node->next.store(expected_head, std::memory_order_relaxed);
             
-            //Below CAS() release ensures all prior writes—including new_node->next.store()—are visible to 
-            //other threads once CAS succeeds. So, previous writes does not need memory_order_release
+            //Below CAS() release ensures all prior writes in this thread—including new_node->next.store()—are visible to 
+            //other threads that load with memory_order_acquire once below CAS succeeds. 
+            //So, previous writes do not need memory_order_release
             if (head.compare_exchange_weak(expected_head, new_node, std::memory_order_release, std::memory_order_acquire)) 
             {
                 //new_node->retirement_epoch = thread_epoch;
