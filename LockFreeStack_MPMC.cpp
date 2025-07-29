@@ -59,15 +59,21 @@ public:
             //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
             //The loop will continue until the head is successfully updated to point to new_node.
     
-            //3. Below CAS() release ensures all prior writes in this thread—including new_node->next.store()—are visible to 
-            //other threads that load with memory_order_acquire once below CAS succeeds. 
+            //3. memory_order_release ensures all prior writes in this thread—including 
+            //new_node->next.store()—are visible to other threads that load with memory_order_acquire 
+            //once below CAS succeeds. 
             //So, previous writes do not need memory_order_release
-            //It's more correct to use std::memory_order_acquire for the failure case in CAS. 
-            //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
-            //expected_next will be updated with the new head value released by other thread.
+
+            ///std::memory_order_acquire means-
+            //any memory writes from another thread published with a memory_order_release—are visible to 
+            //me after this line. It becomes a synchronization barrier—nothing after this line in current 
+            //thread can be reordered to run before it.
+            //It guarantees that all writes done by another thread before their release operation 
+            //(on the same atomic variable) are now visible to this thread.            
             if(head.compare_exchange_weak(expected_head, new_node, 
-                    std::memory_order_release,  //Successful CAS will release the new_node                
-                    std::memory_order_acquire)  //Failed CAS will acquire the expected_next, which is the current head
+                    std::memory_order_release, //Successful CAS will release the new_node                
+                    std::memory_order_acquire) //Failed CAS will acquire the expected_next, 
+                               //which is the current head published with memory_order_release by other thread.
                   ) 
             {
                 break; // Successfully pushed the new node
@@ -85,10 +91,11 @@ public:
         Node* old_head = head.load(std::memory_order_relaxed);
         if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
 
-        while (old_head) {
+        while (old_head) {            
             Node* new_head = old_head->next.load(std::memory_order_acquire);
+            
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, std::memory_order_relaxed)) {
+                    std::memory_order_acq_rel, std::memory_order_acquire)) {
                 out = old_head->data;
                 delete old_head;
                 return true;
