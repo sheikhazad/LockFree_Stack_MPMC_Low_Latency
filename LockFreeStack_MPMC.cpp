@@ -117,7 +117,7 @@ public:
             //next pointer was written before (C) in push() and so guranteed to see it after synchrnised by (D)
             //We will still see A->B->C once synchronised by (D)
             //So, no need for memory_order_acquire to load next pointer
-            Node* new_head = old_head->next.load(std::memory_order_release);
+            Node* new_head = old_head->next.load(std::memory_order_relaxed);
             
             if (head.compare_exchange_weak(old_head, new_head, 
                     std::memory_order_acq_rel, std::memory_order_acquire)) {
