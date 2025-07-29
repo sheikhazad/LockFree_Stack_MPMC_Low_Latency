@@ -41,7 +41,7 @@ public:
         //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
         //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
-        Node* expected_head = head.load(std::memory_order_relaxed);
+        Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
         while(true){
@@ -51,7 +51,7 @@ public:
             //It will be visible only after successful CAS.
             //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
             //(especially node->data = value) before publication.
-            new_node->next.store(expected_head, std::memory_order_relaxed);
+            new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
         
             //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
             //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
@@ -91,9 +91,10 @@ public:
            }**********************************************************/
 
             if(head.compare_exchange_weak(expected_head, new_node, 
-                    std::memory_order_release, //Successful CAS will release the new_node                
+                    std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
+                                               //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
                     std::memory_order_acquire) //Failed CAS will acquire the expected_next, 
-                               //which is the current head published with memory_order_release by other thread.
+                                               //which is the current head published with memory_order_release by other thread.
                   ) 
             {
                 break; // Successfully pushed the new node
@@ -108,11 +109,15 @@ public:
     }
 
     bool pop(T& out) {
-        Node* old_head = head.load(std::memory_order_relaxed);
+        Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
         if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
 
-        while (old_head) {            
-            Node* new_head = old_head->next.load(std::memory_order_acquire);
+        while (old_head) {           
+            //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
+            //next pointer was written before (C) in push() and so guranteed to see it after synchrnised by (D)
+            //We will still see A->B->C once synchronised by (D)
+            //So, no need for memory_order_acquire to load next pointer
+            Node* new_head = old_head->next.load(std::memory_order_release);
             
             if (head.compare_exchange_weak(old_head, new_head, 
                     std::memory_order_acq_rel, std::memory_order_acquire)) {
