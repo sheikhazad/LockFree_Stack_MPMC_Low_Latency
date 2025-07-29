@@ -59,8 +59,9 @@ public:
             //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
             //The loop will continue until the head is successfully updated to point to new_node.
     
-            //3. Below CAS() release ensures all prior writes—including new_node->next.store()—are visible to 
-            //other threads once CAS succeeds. So, previous writes does not need memory_order_release
+            //3. Below CAS() release ensures all prior writes in this thread—including new_node->next.store()—are visible to 
+            //other threads that load with memory_order_acquire once below CAS succeeds. 
+            //So, previous writes do not need memory_order_release
             //It's more correct to use std::memory_order_acquire for the failure case in CAS. 
             //It ensures that if the CAS fails, we synchronise with other thread that did scuccessful release and 
             //expected_next will be updated with the new head value released by other thread.
