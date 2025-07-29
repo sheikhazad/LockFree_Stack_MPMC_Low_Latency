@@ -118,12 +118,12 @@ public:
             //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
             //We will still see A->B->C once synchronised by (D)
             //So, no need for memory_order_acquire to load next pointer in our case.
-            //Node* new_head = old_head->next.load(std::memory_order_relaxed);
+            //Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
             
             //However,if you are not sure 100% that next pointer was updated only before release operation
             //and next pointer may be updated after release operation, 
             //then use memory_order_acquire for safety - to avoid stale next pointer. 
-            Node* new_head = old_head->next.load(std::memory_order_acquire); //(E)
+            Node* new_head = old_head->next.load(std::memory_order_acquire); //(E-2)
 
             //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
             //That’s where we detach the node from shared memory and begin thread-local access. 
@@ -141,8 +141,8 @@ public:
             //So, we need acquire in 3rd argument. Also release as we are removing node, saving then publishing.
             //So, we use acquire + release = memory_order_acq_rel on Success
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, //(F-1) On Success 
-                    std::memory_order_acquire)) //(F-2) On failure, update old_head with latest correct head
+                    std::memory_order_acq_rel, //(F-a) On Success 
+                    std::memory_order_acquire)) //(F-b) On failure, update old_head with latest correct head
              {
                 out = old_head->data;
                 delete old_head;
