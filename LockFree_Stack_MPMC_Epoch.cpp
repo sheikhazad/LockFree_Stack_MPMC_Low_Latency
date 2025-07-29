@@ -120,7 +120,7 @@ public:
         unsigned backoff = 1;
         while (old_head) 
         {   
-            Node* new_head = old_head->next.load(std::memory_order_relaxed);  
+            Node* new_head = old_head->next.load(std::memory_order_acquire);  
     
             //Push() published with memory_order_release, so pop() need to use memory_order_acq + rel because:
             //new_head needs to be published to other threads           
