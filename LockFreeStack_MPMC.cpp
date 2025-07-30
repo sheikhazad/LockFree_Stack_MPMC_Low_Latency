@@ -54,8 +54,8 @@ public:
             new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
         
             //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
-            //If head has changed (another thread has pushed a new node), expected_next will be updated with the new head value,
-            //and the loop will retry with the new expected_next.
+            //If head has changed (another thread has pushed a new node), expected_head will be updated with the new head value,
+            //and the loop will retry with the new expected_head.
             //This ensures that the stack remains lock-free and allows multiple threads to push concurrently without blocking
             //The loop will continue until the head is successfully updated to point to new_node.
     
