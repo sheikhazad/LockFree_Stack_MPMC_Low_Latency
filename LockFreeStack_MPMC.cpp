@@ -117,8 +117,10 @@ public:
 
     bool pop(T& out) {
         
-        //old_head can be outside loop in stack (unlike a queue) provided one condition:
+        //old_head can be outside loop in stack (unlike a queue's deque()) provided one condition:
         //Every value derived from old_head is rebuilt on each iteration before CAS
+        //Because, In a stack pop, all correctness depends on one shared pointer (head).
+        //In a queue dequeue(), correctness depends on two shared pointers (head and head->next).
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
  
         //This is not safe without hazard protection.
