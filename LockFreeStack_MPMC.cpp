@@ -41,6 +41,7 @@ public:
         //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
         //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
+        //Doesnt need to be insude while() as CAS will update stale value with correct value
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
@@ -51,6 +52,7 @@ public:
             //It will be visible only after successful CAS.
             //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
             //(especially node->data = value) before publication.
+            //If expected_head is stale, CAS will not be successful 
             new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
         
             //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
@@ -98,6 +100,8 @@ public:
                   ) 
             {
                 break; // Successfully pushed the new node
+                //Correctness is only required at the instant a CAS succeeds.
+                //Everything before that is speculative and may be thrown away.
             }       
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
             #ifdef __x86_64__
@@ -105,6 +109,9 @@ public:
             #else
             std::this_thread::yield();
             #endif  // Yield to reduce contention
+ 
+            // expected_head is updated here on every failure
+            // loop retries with the new value
         }
     }
 
