@@ -117,8 +117,13 @@ public:
 
     bool pop(T& out) {
         
+        //old_head can be outsude loop in stack (unlike a queue) provuded one condition:
+        //Every value derived from old_head is rebuilt on each iteration before CAS
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
-        if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
+ 
+        //This is not safe without hazard protection.
+        //Another thread can pop and delete old_head
+        //if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
 
         while (old_head) {           
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
@@ -127,9 +132,10 @@ public:
             //So, no need for memory_order_acquire to load next pointer in our case.
             //Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
             
-            //However,if you are not sure 100% that next pointer was updated only before release operation
+            //1. However,if you are not sure 100% that next pointer was updated only before release operation
             //and next pointer may be updated after release operation, 
             //then use memory_order_acquire for safety - to avoid stale next pointer. 
+            //2. Every value derived from old_head must be rebuilt on each iteration before CAS
             Node* new_head = old_head->next.load(std::memory_order_acquire); //(E-2)
 
             //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
