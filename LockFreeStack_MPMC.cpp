@@ -117,7 +117,7 @@ public:
 
     bool pop(T& out) {
         
-        //old_head can be outsude loop in stack (unlike a queue) provuded one condition:
+        //old_head can be outside loop in stack (unlike a queue) provided one condition:
         //Every value derived from old_head is rebuilt on each iteration before CAS
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
  
