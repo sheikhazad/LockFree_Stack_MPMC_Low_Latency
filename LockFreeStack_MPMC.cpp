@@ -95,8 +95,10 @@ public:
             if(head.compare_exchange_weak(expected_head, new_node, 
                     std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
                                                //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
-                    std::memory_order_acquire) //Failed CAS will acquire the expected_next, 
+                    std::memory_order_relaxed) //1. Failed CAS will acquire the expected_next, 
                                                //which is the current head published with memory_order_release by other thread.
+                                               //2. We dont need std::memory_order_acquire on failure because push() doesnt read other thread's data
+                                               // like expected_head->data, not dereferencing expected_head->next, not reading node's contents
                   ) 
             {
                 break; // Successfully pushed the new node
