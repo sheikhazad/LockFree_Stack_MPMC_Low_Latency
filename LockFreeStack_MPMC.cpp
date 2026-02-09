@@ -174,10 +174,11 @@ public:
         return head.load(std::memory_order_acquire) == nullptr;
     }
 
+    //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
     ~LockFreeStack() {
-        Node* current = head.exchange(nullptr, std::memory_order_acquire);
+        Node* current = head.exchange(nullptr, std::memory_order_relaxed);
         while (current) {
-           Node* next = current->next.load(std::memory_order_acquire);
+           Node* next = current->next.load(std::memory_order_relaxed);
            delete current;
            current = next;
        }
