@@ -112,11 +112,6 @@ public:
         thread_epoch = global_epoch.load(std::memory_order_acquire);
         Node* old_head = head.load(std::memory_order_acquire); 
         
-        if (old_head) {
-            __builtin_prefetch(old_head, 0, 3);
-            __builtin_prefetch(old_head->next, 0, 1);
-        }
-
         unsigned backoff = 1;
         while (old_head) 
         {   
