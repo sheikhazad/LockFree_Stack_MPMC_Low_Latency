@@ -142,11 +142,11 @@ public:
         while (old_head) {           
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
             //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
-            //We will still see A->B->C once synchronised by (D)
+            //We will still see A->B->C once synchronised by (D) 
             //->next is fully initialised BEFORE the release CAS that published new_node in Push(). 
             //Once pop() does acquire on head (at (D) above or on CAS success below[CAS gurantees that we get correct old_head]), 
             //it is guranteed to see correct value of next.
-            //So, no need for memory_order_acquire to load next pointer in our case.
+            //So, no need for "extra" memory_order_acquire to load next pointer as long as next was written before release publication in push()
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
 
             //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
