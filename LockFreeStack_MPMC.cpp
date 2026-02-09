@@ -23,7 +23,7 @@ constexpr int NUMA_NODE_1 = 1;  // Consumers on NUMA node 1
 constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
 
 template <typename T>
-class LockFreeStack {
+class LockFreeMPMCStack {
 private:
     struct alignas(CACHE_LINE_SIZE) Node {
         T data;
@@ -177,7 +177,7 @@ public:
     }
 
     //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
-    ~LockFreeStack() {
+    ~LockFreeMPMCStack() {
         Node* current = head.exchange(nullptr, std::memory_order_relaxed);
         while (current) {
            Node* next = current->next.load(std::memory_order_relaxed);
@@ -187,16 +187,16 @@ public:
     }
 
     // Disable copy operations
-    LockFreeStack(const LockFreeStack&) = delete;
-    LockFreeStack& operator=(const LockFreeStack&) = delete;
+    LockFreeMPMCStack(const LockFreeMPMCStack&) = delete;
+    LockFreeMPMCStack& operator=(const LockFreeMPMCStack&) = delete;
 
     // Disable move operations
-    LockFreeStack(LockFreeStack&&) = delete;
-    //LockFreeStack(LockFreeStack&& other) noexcept : head(std::move(other.head)) { }        
+    LockFreeMPMCStack(LockFreeMPMCStack&&) = delete;
+    //LockFreeMPMCStack(LockFreeMPMCStack&& other) noexcept : head(std::move(other.head)) { }        
 
-    LockFreeStack& operator=(LockFreeStack&&) = delete;
+    LockFreeMPMCStack& operator=(LockFreeMPMCStack&&) = delete;
 
-    LockFreeStack() = default;  // Default constructor
+    LockFreeMPMCStack() = default;  // Default constructor
     
 
     //Optional:
@@ -270,7 +270,7 @@ void pinThreadToCore(int threadIndex, int numaNode) {
 }
 
 int main() {
-    LockFreeStack<int> stack;
+    LockFreeMPMCStack<int> stack;
     std::vector<std::thread> threads;
 
     for (int i = 0; i < NUM_PRODUCERS; ++i) {
