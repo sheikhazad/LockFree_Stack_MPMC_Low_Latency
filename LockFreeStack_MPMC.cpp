@@ -120,10 +120,12 @@ public:
 
     bool pop(T& out) {
         
-        //old_head can be outside loop in stack (unlike a queue's deque()) provided one condition:
+        //1. old_head can be outside loop in stack (unlike a queue's deque()) provided one condition:
         //Every value derived from old_head is rebuilt on each iteration before CAS
         //Because, In a stack pop, all correctness depends on one shared pointer (head).
         //In a queue dequeue(), correctness depends on two shared pointers (head and head->next).
+        //2. We can use std::memory_order_relaxed and CAS will give correct old_head but if start with relaxed load, we are almost guranteeing that
+        //   our first CAS attempt will fail. Failing a CAS is expensive.
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
  
         //This is not safe without hazard protection.
