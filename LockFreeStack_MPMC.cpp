@@ -34,6 +34,7 @@ private:
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
     
 public:
+    //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
         
@@ -118,7 +119,8 @@ public:
             // loop retries with the new value
         }
     }
-
+  
+    //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
         
         //1. old_head can be outside loop in stack (unlike a queue's deque()) provided one condition:
