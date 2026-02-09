@@ -135,13 +135,8 @@ public:
             //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
             //We will still see A->B->C once synchronised by (D)
             //So, no need for memory_order_acquire to load next pointer in our case.
-            //Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
-            
-            //1. However,if you are not sure 100% that next pointer was updated only before release operation
-            //and next pointer may be updated after release operation, 
-            //then use memory_order_acquire for safety - to avoid stale next pointer. 
-            //2. Every value derived from old_head must be rebuilt on each iteration before CAS
-            Node* new_head = old_head->next.load(std::memory_order_acquire); //(E-2)
+            //CAS gurantees that we get correct old_head
+            Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
 
             //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
             //That’s where we detach the node from shared memory and begin thread-local access. 
@@ -163,7 +158,8 @@ public:
                     std::memory_order_acquire)) //(F-b) On failure, update old_head with latest correct head
              {
                 out = old_head->data;
-                delete old_head;
+                //delete old_head; //We cant delete now as other threads might have references to it. 
+                //Need proper memory reclamation scheme like hazard pointers, RCU, epoch etc.
                 return true;
              }
         }
