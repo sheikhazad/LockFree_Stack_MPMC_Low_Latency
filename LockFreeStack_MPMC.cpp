@@ -41,7 +41,8 @@ public:
         //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
         //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
-        //Doesnt need to be insude while() as CAS will update stale value with correct value
+        //Doesnt need to be inside while() as CAS will update stale value with correct value
+        //2. However failing CAS is expensive [see commment in pop()] but here we are not derefrencing expected_head to get expected_head->next
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
@@ -126,6 +127,9 @@ public:
         //In a queue dequeue(), correctness depends on two shared pointers (head and head->next).
         //2. We can use std::memory_order_relaxed and CAS will give correct old_head but if start with relaxed load, we are almost guranteeing that
         //   our first CAS attempt will fail. Failing a CAS is expensive.
+        //   Also we are dereferencing old_head to get old_head->next. 
+        //   Without acquire we may get pointer but not content it points to (the next value), leading to a crash or garbage data.
+        //   So, whole point for using memory_order_acquire is accessing old_head->next
         Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
  
         //This is not safe without hazard protection.
