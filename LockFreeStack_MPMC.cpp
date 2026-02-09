@@ -152,24 +152,16 @@ public:
             //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
             //That’s where we detach the node from shared memory and begin thread-local access. 
             //Without an acquire on CAS success,we risk the compiler speculating reads (like old_head->data) before the CAS is confirmed.
-            //Compiler might transform this:
-            /*********
-            if (cas(..., release)) {
-                out = old_head->data;
-            }
-            // Into:
-            auto tmp = old_head->data;  // Speculative read!
-            if (cas(..., release)) {
-                out = tmp;  // Uses potentially invalid data
-            }*********/
-            //So, we need acquire in 3rd argument. Also release as we are removing node, saving then publishing.
-            //So, we use acquire + release = memory_order_acq_rel on Success
+        
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, //(F-a) On Success 
-                    std::memory_order_acquire)) //(F-b) On failure, update old_head with latest correct head
+                    std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
+                                               //release: We are "removing" not publishing node->data or fresh data for other threads, 
+                                               //so no need for memory_order_release
+                    std::memory_order_relaxed)) //(F-b) On failure, just update old_head with latest correct head as guranteed by CAS.
              {
                 out = old_head->data;
                 //delete old_head; //We cant delete now as other threads might have references to it. 
+                //retire(old_head);
                 //Need proper memory reclamation scheme like hazard pointers, RCU, epoch etc.
                 return true;
              }
