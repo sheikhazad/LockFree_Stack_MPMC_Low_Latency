@@ -54,7 +54,6 @@ public:
             //It will be visible only after successful CAS.
             //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
             //(especially node->data = value) before publication.
-            //If expected_head is stale, CAS will not be successful 
             new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
         
             //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
