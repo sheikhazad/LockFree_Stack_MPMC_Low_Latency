@@ -271,6 +271,7 @@ void pinThreadToCore(int threadIndex, int numaNode) {
 int main() {
     LockFreeMPMCStack<int> stack;
     std::vector<std::thread> threads;
+    threads.reserve(NUM_PRODUCERS + NUM_CONSUMERS);
 
     for (int i = 0; i < NUM_PRODUCERS; ++i) {
         threads.emplace_back([i, &stack]() { 
