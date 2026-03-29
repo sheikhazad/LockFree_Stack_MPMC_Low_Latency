@@ -27,7 +27,8 @@ constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
 template <typename T>
 class LockFreeMPMCStack {
 private:
-    struct alignas(CACHE_LINE_SIZE) Node {
+    struct alignas(CACHE_LINE_SIZE) Node 
+    {
         T data;
         std::atomic<Node*> next;
         explicit Node(T const& value) : data(value), next(nullptr) {}
@@ -36,6 +37,14 @@ private:
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
     
 public:
+    LockFreeMPMCStack(const LockFreeMPMCStack&) = delete;
+    LockFreeMPMCStack& operator=(const LockFreeMPMCStack&) = delete;
+    LockFreeMPMCStack(LockFreeMPMCStack&&) = delete;
+    //LockFreeMPMCStack(LockFreeMPMCStack&& other) noexcept : head(std::move(other.head)) { }        
+    LockFreeMPMCStack& operator=(LockFreeMPMCStack&&) = delete;
+
+    LockFreeMPMCStack() = default;  // Default constructor
+    
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
@@ -186,16 +195,6 @@ public:
            current = next;
        }
     }
-
-    // Disable copy operations
-    LockFreeMPMCStack(const LockFreeMPMCStack&) = delete;
-    LockFreeMPMCStack& operator=(const LockFreeMPMCStack&) = delete;
-    LockFreeMPMCStack(LockFreeMPMCStack&&) = delete;
-    //LockFreeMPMCStack(LockFreeMPMCStack&& other) noexcept : head(std::move(other.head)) { }        
-    LockFreeMPMCStack& operator=(LockFreeMPMCStack&&) = delete;
-
-    LockFreeMPMCStack() = default;  // Default constructor
-    
 
     //Optional:
     // Bulk push for better performance in high-throughput scenarios
