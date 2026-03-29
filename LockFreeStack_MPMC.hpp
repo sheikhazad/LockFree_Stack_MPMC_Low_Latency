@@ -209,7 +209,7 @@ public:
 
         //concurrent bulk inserts could cause inconsistencies.
         //Fix: Use per-thread batching queues to avoid race conditions:
-        static thread_local std::vector<Node*> local_batch;
+        static inline thread_local std::vector<Node*> local_batch;
         if (local_batch.empty()) {
             local_batch.reserve(values.size());
         }
