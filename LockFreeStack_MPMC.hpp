@@ -219,7 +219,6 @@ public:
             if (values.empty())
                 return;
         
-            // Build local chain
             Node* first = new Node(values[0]);
             Node* last  = first;
         
@@ -230,7 +229,8 @@ public:
                 // Stack order:
                 // values[0] will be popped first
                 last->next.store(new_node, std::memory_order_relaxed);
-                last = new_node;
+                //last = last->next.load(std::memory_order_relaxed); 
+                last = new_node; //Faster, no need to load again like last = last->next.load(..)
             }
         
             Node* expected_head = head.load(std::memory_order_relaxed);
