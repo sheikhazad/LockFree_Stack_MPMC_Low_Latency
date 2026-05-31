@@ -107,11 +107,17 @@ public:
             if(head.compare_exchange_weak(expected_head, new_node, 
                     std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
                                                //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
-                    std::memory_order_relaxed) //1. Failed CAS will acquire the expected_next, 
-                                               //which is the current head published with memory_order_release by other thread.
-                                               //2. We dont need std::memory_order_acquire on failure because push() doesnt read data behind it, other thread's data
-                                               // like expected_head->data, not dereferencing expected_head->next, not reading node's contents.
-                                               // CAS already guarantees atomicity, correct update of expected_head
+                    std::memory_order_relaxed) //1. On CAS failure, expected_head is atomically updated
+                                               //   with the current value of head.
+                                               //2. No acquire semantics are required here because
+                                               //   push() never dereferences expected_head or reads
+                                               //   data stored inside the node.
+                                               //3. We only need the latest head pointer value so that
+                                               //   the next iteration can rebuild:
+                                               //       new_node->next = expected_head
+                                               //   and retry the CAS.
+                                               //4. Using memory_order_relaxed avoids unnecessary
+                                               //   synchronization overhead while preserving correctness.
                   ) 
             {
                 break; // Successfully pushed the new node
@@ -205,36 +211,48 @@ public:
     // It is designed for scenarios where the caller can guarantee that no other threads
     // are modifying the stack while this method is called.
     
-    void push_bulk_thread_safe(const std::vector<T>& values) {
-
-        //concurrent bulk inserts could cause inconsistencies.
-        //Fix: Use per-thread batching queues to avoid race conditions:
-        static inline thread_local std::vector<Node*> local_batch;
-        if (local_batch.empty()) {
-            local_batch.reserve(values.size());
-        }
-
-        //**^**It seems wrong, individual nodes sre not linked 
-        for (const auto& v : values) {
-            local_batch.emplace_back(new Node(v));
-        }
+    void push_bulk_thread_safe(const std::vector<T>& values)
+    {
+            if (values.empty())
+                return;
         
-        Node* first = local_batch.front();
-        Node* last = local_batch.back();
-        Node* expected_head = head.load(std::memory_order_relaxed);
+            // Build local chain
+            Node* first = new Node(values[0]);
+            Node* last  = first;
         
-        last->next.store(expected_head, std::memory_order_release);
-        while (!head.compare_exchange_weak(expected_head, first, std::memory_order_release, std::memory_order_relaxed)) {
-            // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
-            #ifdef __x86_64__
-            _mm_pause();  // Lower latency than yield()
-            #else
-            std::this_thread::yield();
-            #endif  // Yield to reduce contention
-        }
-        // Clear the local batch after successful push
-        local_batch.clear();
-    }   
+            for (size_t i = 1; i < values.size(); ++i)
+            {
+                Node* new_node = new Node(values[i]);
+        
+                // Stack order:
+                // values[0] will be popped first
+                last->next.store(new_node, std::memory_order_relaxed);
+                last = new_node;
+            }
+        
+            Node* expected_head = head.load(std::memory_order_relaxed);
+        
+            while (true)
+            {
+                // Attach existing stack after our chain
+                last->next.store(expected_head, std::memory_order_relaxed);
+        
+                if (head.compare_exchange_weak(
+                        expected_head,
+                        first,
+                        std::memory_order_release,
+                        std::memory_order_relaxed))
+                {
+                    break;
+                }
+        
+                #ifdef __x86_64__
+                        _mm_pause();
+                #else
+                        std::this_thread::yield();
+                #endif
+            }
+   } 
 
     
 };
