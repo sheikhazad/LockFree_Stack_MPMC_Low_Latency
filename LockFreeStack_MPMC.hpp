@@ -214,6 +214,7 @@ public:
             local_batch.reserve(values.size());
         }
 
+        //**^**It seems wrong, individual nodes sre not linked 
         for (const auto& v : values) {
             local_batch.emplace_back(new Node(v));
         }
