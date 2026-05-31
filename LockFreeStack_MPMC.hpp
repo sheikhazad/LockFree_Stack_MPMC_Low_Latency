@@ -151,7 +151,10 @@ public:
         //   As we access old_head->next, we should pair with push()'s CAS i.e. Any writes before successful push()'s CAS 
         //   (including data & next) are visible after this acquire
         //   So, whole point for using memory_order_acquire is accessing valid old_head->next not just old_head
-        Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) synchronise with (C) in push()
+        Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) acquires a head pointer that was previously published
+                                                                // by a successful release CAS in push().
+                                                                // This guarantees visibility of all writes performed before
+                                                                // that release operation, including node->data and node->next.
  
         //This is not safe without hazard protection.
         //Another thread can pop and delete old_head
