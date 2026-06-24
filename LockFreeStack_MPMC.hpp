@@ -175,7 +175,8 @@ public:
             //->next is fully initialised BEFORE the release CAS that published new_node in Push(). 
             //Once pop() does acquire on head (at (D) above or on CAS success below[CAS gurantees that we get correct old_head]), 
             //it is guranteed to see correct value of next.
-            //So, no need for "extra" memory_order_acquire to load next pointer as long as next was written before release publication in push()
+            // No additional acquire is needed for next because it is already
+            // safely published by the release operation in push().
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
 
             // If CAS succeeds, we have removed old_head from the stack.
@@ -188,7 +189,8 @@ public:
                     std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
                                                //release: We are "removing" not publishing node->data or fresh data for other threads, 
                                                //so no need for memory_order_release
-                    std::memory_order_relaxed)) //(F-b) On failure, just update old_head with latest correct head as guranteed by CAS.
+                    std::memory_order_relaxed)) //(F-b) // On failure, CAS updates old_head with the current head value,
+                                                        // allowing the loop to retry with the latest state.
              {
                 out = old_head->data;
                 //delete old_head; //We cant delete now as other threads might have references to it. 
