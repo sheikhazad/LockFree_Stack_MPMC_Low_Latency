@@ -182,8 +182,18 @@ public:
              {
                 out = old_head->data;
                 //delete old_head; //We cant delete now as other threads might have references to it. 
-                //retire(old_head);
-                //Need proper memory reclamation scheme like hazard pointers, RCU, epoch etc.
+                // NOTE:
+                // This implementation intentionally does NOT reclaim nodes.
+                // Therefore:
+                //   - ABA protection is not yet implemented.
+                //   - Nodes are never deleted after pop().
+                //   - Memory usage grows indefinitely.
+                //   - This avoids use-after-free while the lock-free algorithm
+                //     is being developed incrementally.
+                //
+                // Proper production implementation requires:
+                //   1. ABA protection (tagged pointers)
+                //   2. Memory reclamation (hazard pointers / epoch reclamation)
                 return true;
              }
         }
