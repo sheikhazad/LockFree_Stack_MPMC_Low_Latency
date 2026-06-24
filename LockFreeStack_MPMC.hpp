@@ -24,6 +24,7 @@ constexpr int NUMA_NODE_0 = 0;  // Producers on NUMA node 0
 constexpr int NUMA_NODE_1 = 1;  // Consumers on NUMA node 1
 constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
 
+///Lock-Free Treiber Stack MPMC 
 template <typename T>
 class LockFreeMPMCStack {
 private:
