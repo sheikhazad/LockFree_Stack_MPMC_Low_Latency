@@ -193,7 +193,7 @@ public:
                 //
                 // Proper production implementation requires:
                 //   1. ABA protection (tagged pointers)
-                //   2. Memory reclamation (hazard pointers / epoch reclamation)
+                //   2. Memory reclamation (hazard pointers / Epoch-Based Reclamation (EBR) )
                 return true;
              }
         }
