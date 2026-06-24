@@ -177,10 +177,12 @@ public:
             //So, no need for "extra" memory_order_acquire to load next pointer as long as next was written before release publication in push()
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
 
-            //While the initial acquire (D) guarantees visibility of old_head,CAS is the moment ownership is claimed. 
-            //That’s where we detach the node from shared memory and begin thread-local access. 
-            //Without an acquire on CAS success,we risk the compiler speculating reads (like old_head->data) before the CAS is confirmed.
-        
+            // If CAS succeeds, we have removed old_head from the stack.
+            // acquire ensures we see the full node data written in push()
+            // before the node was added to the stack.
+            // This avoids reading garbage or partially written values.
+            // In short, CAS success means we popped the top node.
+            // acquire acquire ensures we see the correct data stored in the node by push().
             if (head.compare_exchange_weak(old_head, new_head, 
                     std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
                                                //release: We are "removing" not publishing node->data or fresh data for other threads, 
