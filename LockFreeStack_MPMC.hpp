@@ -169,8 +169,9 @@ public:
               return false; 
             
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
-            //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
-            //We will still see A->B->C once synchronised by (D) 
+            // The next pointer was written before the release CAS in push(),
+            // so once we acquire the head pointer here, we are guaranteed to
+            // observe a fully initialized node (including next and data).
             //->next is fully initialised BEFORE the release CAS that published new_node in Push(). 
             //Once pop() does acquire on head (at (D) above or on CAS success below[CAS gurantees that we get correct old_head]), 
             //it is guranteed to see correct value of next.
