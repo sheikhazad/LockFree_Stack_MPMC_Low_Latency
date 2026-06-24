@@ -165,6 +165,8 @@ public:
         while (true) {   
             
             Node* old_head = head.load(std::memory_order_acquire);
+            if (!old_head) 
+              return false; 
             
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
             //next pointer(B) was written before (C) in push() and so guranteed to see it after synchrnised by (D)
