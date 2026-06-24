@@ -236,7 +236,7 @@ public:
     // It is designed for scenarios where the caller can guarantee that no other threads
     // are modifying the stack while this method is called.
     
-    void push_bulk_thread_safe(const std::vector<T>& values)
+    void push_bulk_thread_unsafe(const std::vector<T>& values)
     {
             if (values.empty())
                 return;
