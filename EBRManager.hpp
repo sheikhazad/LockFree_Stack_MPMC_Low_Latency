@@ -36,17 +36,16 @@ public:
 
     int register_thread()
     {
-        if (tid == -1)
-        {
-            int id = next_tid.fetch_add(1, std::memory_order_relaxed);
-
-            if (id >= MAX_THREADS)
-                std::abort();
-
-            tid = id;
-        }
-
-        return tid;
+        if (thread_id != -1)
+            return thread_id;
+    
+        int id = next_tid.fetch_add(1, std::memory_order_relaxed);
+    
+        if (id >= MAX_THREADS)
+            std::abort();
+    
+        thread_id = id;
+        return id;
     }
 
     void enter_epoch()
