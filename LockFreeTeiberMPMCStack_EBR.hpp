@@ -104,17 +104,14 @@ public:
                     std::memory_order_relaxed)) 
              {
                 out = old_head->data;
-                 
-                //EBR-4:  4 & 5 below are swapped to avoid delay in reclaiming. While retiring you dont need to be in epoch.
-                          //If you retire, leave epoch first
-                
-                ebr.leave_epoch();
-                //return true;
+
+                 //EBR-4:  
+                 //delete old_head;
+                 ebr.retire_node(old_head);
 
                 //EBR-5:
-                //delete old_head;
-                 ebr.retire_node(old_head);
-                 
+                 //return true;
+                 ebr.leave_epoch();
                  return true;      
              }
         }
