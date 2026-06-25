@@ -2,151 +2,126 @@
 
 #include <atomic>
 #include <vector>
-#include <functional>
 #include <cstdint>
+#include <limits>
 
-//EBR = Epoch Based Reclamation
 class EBRManager
 {
 private:
-
     static constexpr int MAX_THREADS = 128;
-    static constexpr size_t RECLAIM_THRESHOLD = 64;
+    static constexpr uint64_t RETIRE_DELAY = 2;
 
-    struct ThreadEpoch
+    struct ThreadState
     {
+        std::atomic<uint64_t> epoch{0};
         std::atomic<bool> active{false};
-        std::atomic<uint64_t> local_epoch{0};
     };
 
     struct RetiredNode
     {
         void* ptr;
         uint64_t retire_epoch;
-        std::function<void(void*)> deleter;
+        void (*deleter)(void*);
     };
 
     std::atomic<uint64_t> global_epoch{0};
+    ThreadState threads[MAX_THREADS];
 
-    ThreadEpoch thread_epochs[MAX_THREADS];
+    static thread_local int tid;
+    static thread_local std::vector<RetiredNode> retired;
 
-    std::atomic<int> next_thread_id{0};
-
-    static thread_local int thread_id;
-
-    static thread_local std::vector<RetiredNode> retired_nodes;
+    std::atomic<int> next_tid{0};
 
 public:
 
-    EBRManager() = default;
-
     int register_thread()
     {
-        if(thread_id == -1)
+        if (tid == -1)
         {
-            if (thread_id >= MAX_THREADS)
+            int id = next_tid.fetch_add(1, std::memory_order_relaxed);
+
+            if (id >= MAX_THREADS)
                 std::abort();
-            thread_id = next_thread_id.fetch_add(1, std::memory_order_relaxed);
+
+            tid = id;
         }
 
-        return thread_id;
+        return tid;
     }
 
     void enter_epoch()
     {
-        register_thread();
+        int id = register_thread();
 
-        uint64_t epoch =
-            global_epoch.load(std::memory_order_acquire);
+        uint64_t e = global_epoch.load(std::memory_order_acquire);
 
-        thread_epochs[thread_id].local_epoch.store(
-            epoch,
-            std::memory_order_relaxed);
-
-        thread_epochs[thread_id].active.store(
-            true,
-            std::memory_order_release);
+        threads[id].epoch.store(e, std::memory_order_relaxed);
+        threads[id].active.store(true, std::memory_order_release);
     }
 
     void leave_epoch()
     {
-        thread_epochs[thread_id].active.store(
-            false,
-            std::memory_order_release);
+        int id = register_thread();
+        threads[id].active.store(false, std::memory_order_release);
     }
 
-    template<typename Node>
-    void retire_node(Node* node)
+    template<typename T>
+    void retire_node(T* node)
     {
-        retired_nodes.push_back(
-        {
+        retired.push_back({
             node,
             global_epoch.load(std::memory_order_relaxed),
-            [](void* p)
-            {
-                delete static_cast<Node*>(p);
-            }
+            [](void* p) { delete static_cast<T*>(p); }
         });
 
-        if(retired_nodes.size() >= RECLAIM_THRESHOLD)
+        if (retired.size() >= 64)
         {
-            try_reclaim();
+            reclaim();
         }
     }
 
 private:
 
-    void try_reclaim()
+    void reclaim()
     {
-        uint64_t current_epoch =
-            global_epoch.load(std::memory_order_acquire);
+        uint64_t cur = global_epoch.load(std::memory_order_acquire);
 
-        bool can_advance = true;
+        uint64_t min_epoch = cur;
 
-        for(int i = 0; i < MAX_THREADS; ++i)
+        // find oldest active thread epoch
+        for (int i = 0; i < MAX_THREADS; ++i)
         {
-            if(thread_epochs[i].active.load(
-                    std::memory_order_acquire))
+            if (threads[i].active.load(std::memory_order_acquire))
             {
-                if(thread_epochs[i].local_epoch.load(
-                        std::memory_order_acquire)
-                    != current_epoch)
-                {
-                    can_advance = false;
-                    break;
-                }
+                uint64_t e = threads[i].epoch.load(std::memory_order_acquire);
+                if (e < min_epoch)
+                    min_epoch = e;
             }
         }
 
-        if(can_advance)
+        // safe epoch = everything older than min_epoch - RETIRE_DELAY
+        uint64_t safe_epoch = (min_epoch > RETIRE_DELAY)
+                                ? (min_epoch - RETIRE_DELAY)
+                                : 0;
+
+        auto it = retired.begin();
+
+        while (it != retired.end())
         {
-            global_epoch.fetch_add(
-                1,
-                std::memory_order_acq_rel);
-        }
-
-        uint64_t safe_epoch =
-            global_epoch.load(std::memory_order_acquire);
-
-        auto it = retired_nodes.begin();
-
-        while(it != retired_nodes.end())
-        {
-            if(it->retire_epoch + 2 < safe_epoch)
+            if (it->retire_epoch <= safe_epoch)
             {
                 it->deleter(it->ptr);
-
-                it = retired_nodes.erase(it);
+                it = retired.erase(it);
             }
             else
             {
                 ++it;
             }
         }
+
+        global_epoch.store(cur + 1, std::memory_order_release);
     }
 };
 
-thread_local int EBRManager::thread_id = -1;
-
-thread_local std::vector<EBRManager::RetiredNode>
-    EBRManager::retired_nodes;
+thread_local int EBRManager::tid = -1;
+thread_local std::vector<EBRManager::RetiredNode> EBRManager::retired;
