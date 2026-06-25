@@ -55,7 +55,9 @@ public:
     LockFreeTeiberMPMCStackEBR() = default;  // Default constructor
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
-    void push(T const& value) {
+    // No EBR needed in push()
+    void push(T const& value) 
+    {
         Node* new_node = new Node(value);// In HFT, use a memory pool        
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
@@ -100,7 +102,7 @@ public:
           
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acquire, 
+                    std::memory_order_acq_rel, 
                     std::memory_order_relaxed)) 
              {
                 out = old_head->data;
@@ -111,7 +113,7 @@ public:
 
                 //EBR-5:
                  //return true;
-                 ebr.leave_epoch();
+                 ebr.leave_epoch(); //NEVER access old_head after leave_epoch()
                  return true;      
              }
         }
