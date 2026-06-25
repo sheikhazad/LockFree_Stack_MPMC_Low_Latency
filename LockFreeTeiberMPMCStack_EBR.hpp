@@ -93,8 +93,7 @@ public:
             if (!old_head) 
             {
                 //EBR-3:
-                //return false; 
-              
+                //return false;           
                 ebr.leave_epoch();
                 return false;
             }
@@ -105,10 +104,21 @@ public:
                     std::memory_order_relaxed)) 
              {
                 out = old_head->data;
-                return true;
+                 
+                //EBR-4:  4 & 5 below are swapped to avoid delay in reclaiming. While retiring you dont need to be in epoch.
+                          //If you retire, leave epoch first
+                
+                ebr.leave_epoch();
+                //return true;
+
+                //EBR-5:
+                //delete old_head;
+                 ebr.retire_node(old_head);
+                 
+                 return true;      
              }
         }
-        return false;
+        return false; //Unreachable code, no need for ebr.leave_epoch();
     }
 
     // Fast empty check (relaxed, may be stale)
