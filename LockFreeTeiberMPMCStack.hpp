@@ -186,7 +186,7 @@ public:
             // In short, CAS success means we popped the top node.
             // acquire acquire ensures we see the correct data stored in the node by push().
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
+                    std::memory_order_acq_rel, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
                                                //release: We are "removing" not publishing node->data or fresh data for other threads, 
                                                //so no need for memory_order_release
                     std::memory_order_relaxed)) //(F-b) // On failure, CAS updates old_head with the current head value,
