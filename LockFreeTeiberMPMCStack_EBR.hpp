@@ -58,6 +58,8 @@ public:
     // No EBR needed in push()
     void push(T const& value) 
     {
+        ebr.register_thread();
+        
         Node* new_node = new Node(value);// In HFT, use a memory pool        
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
@@ -87,7 +89,7 @@ public:
     bool pop(T& out) {
 
         //EBR-2:
-        ebr.enter_epoch();
+        ebr.enter_epoch(); // internally calls register_thread()
         
         while (true) {   
             
