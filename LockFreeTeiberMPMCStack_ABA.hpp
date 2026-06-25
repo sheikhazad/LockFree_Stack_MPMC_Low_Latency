@@ -152,10 +152,8 @@ public:
             );
 
             if (_head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
-                                               //release: We are "removing" not publishing node->data or fresh data for other threads, 
-                                               //so no need for memory_order_release
-                    std::memory_order_relaxed)) //(F-b) On failure, just update old_head with latest correct head as guranteed by CAS.
+                    std::memory_order_acq_rel, 
+                    std::memory_order_relaxed)) 
             {
 
               
