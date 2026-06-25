@@ -44,9 +44,9 @@ public:
     {
         if(thread_id == -1)
         {
-            thread_id =
-                next_thread_id.fetch_add(1,
-                                         std::memory_order_relaxed);
+            if (thread_id >= MAX_THREADS)
+                std::abort();
+            thread_id = next_thread_id.fetch_add(1, std::memory_order_relaxed);
         }
 
         return thread_id;
