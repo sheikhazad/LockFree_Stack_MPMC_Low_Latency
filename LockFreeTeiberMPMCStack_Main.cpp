@@ -59,15 +59,14 @@ long long measure(const std::string& name, F&& func)
 
     auto end = clock::now();
 
-    /*
-    auto duration =
-    std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    std::cout << name << " took: " << duration << " ns\n";
-    */
-
-    auto duration =
-    std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << name << " took: " << duration << " ms\n";
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    std::cout << name << " took: "
+              << ns << " ns | "
+              << us << " us | "
+              << ms << " ms\n";
 
     return duration;
 }
