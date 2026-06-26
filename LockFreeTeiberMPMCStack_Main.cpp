@@ -62,7 +62,7 @@ long long measure(const std::string& name, F&& func)
     auto duration =
     std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-    std::cout << name << " took: " << duration << " ms\n";
+    std::cout << name << " took: " << duration << " ns\n";
 
     return duration;
 }
