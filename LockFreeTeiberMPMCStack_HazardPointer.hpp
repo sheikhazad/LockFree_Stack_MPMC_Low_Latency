@@ -51,7 +51,7 @@ private:
     };
 
     // Hazard Pointer-2:
-    static thread_local RetiredNode* retired_list = nullptr;
+    inline static thread_local RetiredNode* retired_list = nullptr;
     inline static thread_local int retired_count = 0; //Without inline, we cant intialise
     static constexpr int RETIRE_THRESHOLD = 40;
 
