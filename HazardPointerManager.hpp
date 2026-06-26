@@ -1,9 +1,3 @@
-#pragma once
-
-#include <atomic>
-#include <vector>
-#include <thread>
-#include <unordered_set>
 
 /*************************WHY EBR FASTER THAN HAZARD POINTER FOR MEMORY RELCAMATION********
 EBR (Epoch-Based Reclamation) is usually faster than Hazard Pointers because it removes the 
@@ -167,6 +161,13 @@ With hazard pointers:
 Thread A says: "I am using old_head"
 Thread B sees hazard → does NOT delete => Safe
 */
+#pragma once
+
+#include <atomic>
+#include <vector>
+#include <thread>
+#include <unordered_set>
+
 class HazardPointerManager
 {
 private:
