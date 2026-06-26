@@ -11,6 +11,8 @@
 #include <sched.h>   // Contains cpu_set_t definition
 #include <pthread.h> // Required for pthread_setaffinity_np()
 
+#include "HazardPointerManager.hpp"
+#include "Constants.hpp"
 
 //#include <immintrin.h> // Required for _mm_pause()
 #if defined(__x86_64__) || defined(_M_X64)
@@ -25,7 +27,6 @@
     #define CPU_RELAX() std::this_thread::yield()
 #endif
 
-#include "Constants.hpp"
 
 ///Lock-Free Treiber Stack MPMC 
 template <typename T>
