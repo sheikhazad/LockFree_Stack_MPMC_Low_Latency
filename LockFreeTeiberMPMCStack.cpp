@@ -1,4 +1,7 @@
-#include "LockFreeMPMCStack.hpp"
+#include "LockFreeTeiberMPMCStack.hpp"
+#include "LockFreeTeiberMPMCStack_ABA.hpp"
+#include "LockFreeTeiberMPMCStack_EBR.hpp"
+#include "LockFreeTeiberMPMCStack_HazardPointer.hpp"
 
 
  /*Optional: NUMA-aware CPU pinning function
@@ -30,7 +33,7 @@ void pinThreadToCore(int threadIndex, int numaNode) {
 }
 
 int main() {
-    LockFreeMPMCStack<int> stack;
+    LockFreeTeiberMPMCStack<int> stack;
     std::vector<std::thread> threads;
     threads.reserve(NUM_PRODUCERS + NUM_CONSUMERS);
 
