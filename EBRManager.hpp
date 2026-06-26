@@ -184,15 +184,15 @@ public:
 
     int register_thread()
     {
-        if (thread_id != -1)
-            return thread_id;
+        if (tid != -1)
+            return tid;
     
         int id = next_tid.fetch_add(1, std::memory_order_relaxed);
     
         if (id >= MAX_THREADS)
             std::abort();
     
-        thread_id = id;
+        tid = id;
         return id;
     }
 
