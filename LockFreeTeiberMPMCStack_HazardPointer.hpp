@@ -157,7 +157,7 @@ public:
               return false; 
 
             // Hazard Pointer-6:
-            // publish hazard BEFORE using old_head
+            // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             hp.set_hazard(old_head);
     
             // Safety re-read head AFTER publishing hazard
