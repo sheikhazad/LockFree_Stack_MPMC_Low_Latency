@@ -186,10 +186,8 @@ public:
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
 
             // If CAS succeeds, we have removed old_head from the stack.
-            // acquire ensures we see the full node data written by push() with release
-            // before the node was added to the stack.
-            // This avoids reading garbage or partially written values.
-            // In short, CAS success means we popped the top node.
+            // acquire ensures we see the node contents (data and next)
+            // published by push()'s release CAS.
             if (head.compare_exchange_weak(old_head, new_head, 
                     std::memory_order_acquire, //(F-a) On Success: acquire: Need to acquire and see node->data released by other
                                                //release: We are "removing" not publishing node->data or fresh data for other threads, 
