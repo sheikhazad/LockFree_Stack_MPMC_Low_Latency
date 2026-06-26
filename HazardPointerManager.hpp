@@ -24,16 +24,16 @@ class HazardPointerManager
 {
 private:
     static constexpr int MAX_THREADS = 128;
+    static thread_local int tid = -1;
 
     struct HazardRecord
     {
-        std::atomic<std::thread::id> tid;
         std::atomic<void*> pointer;
-
-        HazardRecord() : tid(), pointer(nullptr) {}
+        HazardRecord() : pointer(nullptr) {}
     };
 
     HazardRecord records[MAX_THREADS];
+    
 
     HazardPointerManager() = default;
 
