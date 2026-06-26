@@ -138,9 +138,9 @@ int main()
     cout << "=== Lock-Free Stack Benchmark ===\n";
 
     run_test<LockFreeTeiberMPMCStack<int>>("Base Stack");
-    run_test<LockFreeTeiberMPMCStack_ABA<int>>("ABA Fixed Stack");
-    run_test<LockFreeTeiberMPMCStack_HazardPointer<int>>("Hazard Pointer Stack");
-    run_test<LockFreeTeiberMPMCStack_EBR<int>>("EBR Stack");
+    run_test<LockFreeTeiberMPMCStackABA<int>>("ABA Fixed Stack");
+    run_test<LockFreeTeiberMPMCStackHazardPointer<int>>("Hazard Pointer Stack");
+    run_test<LockFreeTeiberMPMCStackEBR<int>>("EBR Stack");
 
     return 0;
 }
