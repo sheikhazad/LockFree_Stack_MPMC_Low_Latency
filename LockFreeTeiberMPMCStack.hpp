@@ -53,7 +53,7 @@ public:
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
         
-        //1. We only need a snapshot of head here.
+        //1. We only need a snapshot of head(expected_head) here.
         // If another thread changes head before the CAS,
         // compare_exchange_weak() will fail and update expected_head with the current head value for the next iteration. 
         //ie. CAS fails if head no longer equals expected_head.
