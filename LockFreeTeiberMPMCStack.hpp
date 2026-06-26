@@ -153,34 +153,26 @@ public:
   
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
+
+       while (true) {   
         
-        //1. old_head can be outside loop in stack (unlike a queue's deque()) (but kept inside while() for consistency)
-        //provided one condition:
-        //Every value derived from old_head is rebuilt on each iteration before CAS
-        //Because, In a stack pop, all correctness depends on one shared pointer (head).
-        //In a queue dequeue(), correctness depends on two shared pointers (head and head->next).
-        //2. memory_order:
-        //2.1. We can use std::memory_order_relaxed and CAS will give correct old_head but if start with relaxed load, we are almost guranteeing that
+        //1. memory_order:
+        //1.1. We can use std::memory_order_relaxed and CAS will give correct old_head but if start with relaxed load, we are almost guranteeing that
         //   our first CAS attempt will fail. Failing a CAS is expensive.
-        //2.2. Also we are dereferencing old_head to get old_head->next. 
+        //1.2. Also we are dereferencing old_head to get old_head->next. 
         //   Without acquire we may get pointer but not content it points to (the next value), leading to a crash or garbage data.
         //   As we access old_head->next, we should pair with push()'s CAS i.e. Any writes before successful push()'s CAS 
         //   (including data & next) are visible after this acquire
         //   So, whole point for using memory_order_acquire is accessing valid old_head->next not just old_head
-        //Node* old_head = head.load(std::memory_order_acquire); //(D) => (D) acquires a head pointer that was previously published
-                                                                // by a successful release CAS in push().
-                                                                // This guarantees visibility of all writes performed before
-                                                                // that release operation, including node->data and node->next.
  
-        //This is not safe without hazard protection.
-        //Another thread can pop and delete old_head
-        //if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
-
-        while (true) {   
-            
             Node* old_head = head.load(std::memory_order_acquire);
             if (!old_head) 
               return false; 
+
+            //This is not safe without hazard protection.
+            //Another thread can pop and delete old_head
+            //if (old_head) __builtin_prefetch(old_head->next.load(std::memory_order_relaxed), 0, 1);
+         
             
             //C++ standard says: If operation A happens-before B, and B happens-before C, then A happens-before C.
             // The next pointer was written before the release CAS in push(),
