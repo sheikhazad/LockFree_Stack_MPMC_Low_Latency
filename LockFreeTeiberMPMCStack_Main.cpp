@@ -49,7 +49,7 @@ using namespace std::chrono;
 // Simple timing helper
 // --------------------------------------------
 template <typename F>
-long long measure(const std::string& name, F&& func)
+void measure(const std::string& name, F&& func)
 {
     using clock = std::chrono::steady_clock;
 
@@ -68,7 +68,7 @@ long long measure(const std::string& name, F&& func)
               << us << " us | "
               << ms << " ms\n";
 
-    return duration;
+    //return duration;
 }
 
 // --------------------------------------------
