@@ -93,20 +93,8 @@ public:
            //ABA-5: Replace Node* with TaggedPtrABA
             /*
             if(_head.compare_exchange_weak(expected_head, new_node, 
-                    std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
-                                               //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
-                    std::memory_order_relaxed) //1. On CAS failure, expected_head is atomically updated
-                                               //   with the current value of head.
-                                               //2. No acquire semantics are required here because
-                                               //   push() never dereferences expected_head or reads
-                                               //   data stored inside the node.
-                                               //3. We only need the latest head pointer value so that
-                                               //   the next iteration can rebuild:
-                                               //       new_node->next = expected_head
-                                               //   and retry the CAS.
-                                               //4. Using memory_order_relaxed avoids unnecessary
-                                               //   synchronization overhead while preserving correctness.
-                  ) 
+                    std::memory_order_release, 
+                   std::memory_order_relaxed) ) 
           */
             TaggedPtrABA desired(
                 new_node,
