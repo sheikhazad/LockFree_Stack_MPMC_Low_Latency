@@ -160,7 +160,8 @@ public:
         //1.1. We can use std::memory_order_relaxed and CAS will give correct old_head but if start with relaxed load, we are almost guranteeing that
         //   our first CAS attempt will fail. Failing a CAS is expensive.
         //1.2. Also we are dereferencing old_head to get old_head->next. 
-        //   Without acquire we may get pointer but not content it points to (the next value), leading to a crash or garbage data.
+        //   Without acquire we may observe the pointer before the node's contents
+        //   (data and next) become visible, leading to a crash or garbage data.
         //   As we access old_head->next, we should pair with push()'s CAS i.e. Any writes before successful push()'s CAS 
         //   (including data & next) are visible after this acquire
         //   So, whole point for using memory_order_acquire is accessing valid old_head->next not just old_head
