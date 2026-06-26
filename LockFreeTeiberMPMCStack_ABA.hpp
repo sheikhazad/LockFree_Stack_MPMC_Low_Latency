@@ -159,7 +159,7 @@ public:
             );
 
             if (_head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, 
+                    std::memory_order_acquire, 
                     std::memory_order_relaxed)) 
             {
 
@@ -172,6 +172,8 @@ public:
                 //delete old_head.ptr; //We cant delete now as other threads might have references to it. 
                 return true;
              }
+
+           CPU_RELAX();
         }
         return false;
     }
