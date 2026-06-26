@@ -1,1 +1,267 @@
 
+#pragma once
+
+#include <atomic>
+#include <memory>
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <cassert>
+#define _GNU_SOURCE  // Required for CPU affinity functions
+#include <sched.h>   // Contains cpu_set_t definition
+#include <pthread.h> // Required for pthread_setaffinity_np()
+#include <immintrin.h> // Required for _mm_pause()
+
+// Align nodes to cache lines to avoid false sharing
+#ifndef hardware_destructive_interference_size
+#define hardware_destructive_interference_size 64
+#endif
+
+
+constexpr int NUM_PRODUCERS = 4;
+constexpr int NUM_CONSUMERS = 4;
+constexpr int WORKLOAD = 1000;
+constexpr int NUMA_NODE_0 = 0;  // Producers on NUMA node 0
+constexpr int NUMA_NODE_1 = 1;  // Consumers on NUMA node 1
+constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
+
+///Lock-Free Treiber Stack MPMC 
+template <typename T>
+class LockFreeTeiberMPMCStack {
+private:
+
+    // Hazard Pointer-1:
+    struct RetiredNode
+    {
+        Node* ptr;
+        RetiredNode* next;
+    };
+
+    // Hazard Pointer-2:
+    static thread_local RetiredNode* retired_list = nullptr;
+    static thread_local int retired_count = 0;
+    static constexpr int RETIRE_THRESHOLD = 40;
+
+    // Hazard Pointer-3:
+    void retire_node(Node* node)
+    {
+        node->next.store(nullptr, std::memory_order_relaxed);
+    
+        RetiredNode* r = new RetiredNode{node, retired_list};
+        retired_list = r;
+        retired_count++;
+    
+        if (retired_count >= RETIRE_THRESHOLD)
+        {
+            scan_and_reclaim();
+        }
+    }
+
+    // Hazard Pointer-4:
+    void scan_and_reclaim()
+    {
+        HazardPointerManager& hp = HazardPointerManager::instance();
+    
+        RetiredNode** current = &retired_list;
+    
+        while (*current)
+        {
+            RetiredNode* entry = *current;
+    
+            if (!hp.is_hazard(entry->ptr))
+            {
+                *current = entry->next;
+                delete entry->ptr;
+                delete entry;
+                retired_count--;
+            }
+            else
+            {
+                current = &((*current)->next);
+            }
+        }
+    }
+
+
+    struct alignas(CACHE_LINE_SIZE) Node 
+    {
+        T data;
+        std::atomic<Node*> next;
+        explicit Node(T const& value) : data(value), next(nullptr) {}
+    };
+
+    alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
+    
+public:
+    LockFreeTeiberMPMCStack(const LockFreeTeiberMPMCStack&) = delete;
+    LockFreeTeiberMPMCStack& operator=(const LockFreeTeiberMPMCStack&) = delete;
+    LockFreeTeiberMPMCStack(LockFreeTeiberMPMCStack&&) = delete;
+    //LockFreeTeiberMPMCStack(LockFreeTeiberMPMCStack&& other) noexcept : head(std::move(other.head)) { }        
+    LockFreeTeiberMPMCStack& operator=(LockFreeTeiberMPMCStack&&) = delete;
+
+    LockFreeTeiberMPMCStack() = default;  // Default constructor
+    
+    //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
+    void push(T const& value) {
+        Node* new_node = new Node(value);// In HFT, use a memory pool
+        Node* expected_head = head.load(std::memory_order_relaxed); //(A)
+
+        //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
+        while(true){
+            
+            new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
+          
+            if(head.compare_exchange_weak(expected_head, new_node, 
+                    std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
+                                               //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
+                    std::memory_order_relaxed) //1. On CAS failure, expected_head is atomically updated
+                                               //   with the current value of head.
+                                               //2. No acquire semantics are required here because
+                                               //   push() never dereferences expected_head or reads
+                                               //   data stored inside the node.
+                                               //3. We only need the latest head pointer value so that
+                                               //   the next iteration can rebuild:
+                                               //       new_node->next = expected_head
+                                               //   and retry the CAS.
+                                               //4. Using memory_order_relaxed avoids unnecessary
+                                               //   synchronization overhead while preserving correctness.
+                  ) 
+            {
+                break; // Successfully pushed the new node
+                //Correctness is only required at the instant a CAS succeeds.
+                //Everything before that is speculative and may be thrown away.
+            }       
+            // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
+            #ifdef __x86_64__
+            _mm_pause();  // Lower latency than yield()
+            #else
+            std::this_thread::yield();
+            #endif  // Yield to reduce contention
+ 
+            // expected_head is updated here on every failure
+            // loop retries with the new value
+        }
+    }
+  
+    //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
+    bool pop(T& out) {
+
+        // Hazard Pointer-5:
+        HazardPointerManager& hp = HazardPointerManager::instance();
+        hp.register_thread(); // safe if called multiple times, or move outside thread entry
+        
+        while (true) {   
+            
+            Node* old_head = head.load(std::memory_order_acquire);
+            if (!old_head) 
+              return false; 
+
+            // Hazard Pointer-6:
+            // publish hazard BEFORE using old_head
+            hp.set_hazard(old_head);
+    
+            // Safety re-read head AFTER publishing hazard
+            // (prevents race where node is freed between load and hazard set)
+            Node* check = head.load(std::memory_order_acquire);
+            if (check != old_head)
+            {
+                hp.clear_hazard();
+                continue;
+            }
+            ////HP///
+          
+            Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
+          
+            if (head.compare_exchange_weak(old_head, new_head, 
+                    std::memory_order_acq_rel, 
+                    std::memory_order_relaxed)) 
+             {
+                out = old_head->data;
+
+                //delete old_head
+                // Hazard Pointer-7:
+                //Instead of delete, retire old_head
+                // Safe memory reclamation
+                hp.clear_hazard();
+                retire_node(old_head);
+               
+                return true;
+             }
+          
+          // Hazard Pointer-8:
+          //Clear hazard in all exit paths
+          hp.clear_hazard();
+          
+        }
+        return false;
+    }
+
+    // Fast empty check (relaxed, may be stale)
+    bool empty() const {
+        return head.load(std::memory_order_acquire) == nullptr;
+    }
+
+    //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
+    ~LockFreeTeiberMPMCStack() {
+        Node* current = head.exchange(nullptr, std::memory_order_relaxed);
+        while (current) {
+           Node* next = current->next.load(std::memory_order_relaxed);
+           delete current;
+           current = next;
+       }
+    }
+
+    //Optional:
+    // Bulk push for better performance in high-throughput scenarios
+    // This is useful in high-frequency trading (HFT) where batch processing is common
+    // It allows pushing multiple values at once, reducing contention and improving throughput.
+    // In HFT, this can be used to push a batch of market data updates or orders.
+    // This method is not thread-safe
+    // It is designed for scenarios where the caller can guarantee that no other threads
+    // are modifying the stack while this method is called.
+    
+    void push_bulk_thread_unsafe(const std::vector<T>& values)
+    {
+            if (values.empty())
+                return;
+        
+            Node* first = new Node(values[0]);
+            Node* last  = first;
+        
+            for (size_t i = 1; i < values.size(); ++i)
+            {
+                Node* new_node = new Node(values[i]);
+        
+                // Stack order:
+                // values[0] will be popped first
+                last->next.store(new_node, std::memory_order_relaxed);
+                //last = last->next.load(std::memory_order_relaxed); 
+                last = new_node; //Faster, no need to load again like last = last->next.load(..)
+            }
+        
+            Node* expected_head = head.load(std::memory_order_relaxed);
+        
+            while (true)
+            {
+                // Attach existing stack after our chain
+                last->next.store(expected_head, std::memory_order_relaxed);
+        
+                if (head.compare_exchange_weak(
+                        expected_head,
+                        first,
+                        std::memory_order_release,
+                        std::memory_order_relaxed))
+                {
+                    break;
+                }
+        
+                #ifdef __x86_64__
+                        _mm_pause();
+                #else
+                        std::this_thread::yield();
+                #endif
+            }
+   } 
+
+    
+};
