@@ -16,24 +16,26 @@ Thread B sees hazard → does NOT delete => Safe
 #pragma once
 
 #include <atomic>
-#include <vector>
 #include <thread>
-#include <unordered_set>
+#include <stdexcept>
 
 class HazardPointerManager
 {
 private:
     static constexpr int MAX_THREADS = 128;
-    static thread_local int tid = -1;
 
     struct HazardRecord
     {
         std::atomic<void*> pointer;
+
         HazardRecord() : pointer(nullptr) {}
     };
 
     HazardRecord records[MAX_THREADS];
-    
+
+    std::atomic<int> next_tid{0};
+
+    static thread_local int tid;
 
     HazardPointerManager() = default;
 
@@ -44,51 +46,44 @@ public:
         return hp;
     }
 
+    // ------------------------------------------------------------
+    // Register thread once → assigns a fixed slot
+    // ------------------------------------------------------------
     void register_thread()
     {
-        std::thread::id this_id = std::this_thread::get_id();
+        if (tid != -1)
+            return;
 
-        for (int i = 0; i < MAX_THREADS; ++i)
-        {
-            std::thread::id empty;
-            if (records[i].tid.compare_exchange_strong(empty, this_id,
-                    std::memory_order_acq_rel))
-            {
-                return;
-            }
-        }
+        int id = next_tid.fetch_add(1, std::memory_order_relaxed);
 
-        throw std::runtime_error("Too many threads for Hazard Pointers");
+        if (id >= MAX_THREADS)
+            throw std::runtime_error("Too many threads for Hazard Pointers");
+
+        tid = id;
     }
 
+    // ------------------------------------------------------------
+    // Publish hazard pointer
+    // ------------------------------------------------------------
     void set_hazard(void* ptr)
     {
-        std::thread::id this_id = std::this_thread::get_id();
-
-        for (int i = 0; i < MAX_THREADS; ++i)
-        {
-            if (records[i].tid.load(std::memory_order_acquire) == this_id)
-            {
-                records[i].pointer.store(ptr, std::memory_order_release);
-                return;
-            }
-        }
+        register_thread();
+        records[tid].pointer.store(ptr, std::memory_order_release);
     }
 
+    // ------------------------------------------------------------
+    // Clear hazard pointer
+    // ------------------------------------------------------------
     void clear_hazard()
     {
-        std::thread::id this_id = std::this_thread::get_id();
-
-        for (int i = 0; i < MAX_THREADS; ++i)
-        {
-            if (records[i].tid.load(std::memory_order_acquire) == this_id)
-            {
-                records[i].pointer.store(nullptr, std::memory_order_release);
-                return;
-            }
-        }
+        if (tid == -1) return;
+        records[tid].pointer.store(nullptr, std::memory_order_release);
     }
 
+    // ------------------------------------------------------------
+    // Check if a pointer is currently protected
+    // (used during reclamation scan)
+    // ------------------------------------------------------------
     bool is_hazard(void* ptr)
     {
         for (int i = 0; i < MAX_THREADS; ++i)
@@ -99,3 +94,6 @@ public:
         return false;
     }
 };
+
+// thread-local slot id
+inline thread_local int HazardPointerManager::tid = -1;
