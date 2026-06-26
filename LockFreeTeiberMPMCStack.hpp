@@ -53,12 +53,11 @@ public:
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
         
-        //1. We only need a snapshot of head(expected_head) here.
-        // If another thread changes head before the CAS,
-        // compare_exchange_weak() will fail and update expected_head with the current correct head value for the next iteration 
-
-        //new_node->next = head.load(std::memory_order_relaxed); 
-        //Doesnt need to be inside while() as CAS will update stale value with correct value
+        //1.We only need a snapshot of head(expected_head) here.
+        //If another thread changes head in between load() the CAS,
+        //compare_exchange_weak() will fail and update expected_head 
+        //with the current correct head value for the next iteration 
+        //Load() doesnt need to be inside while() as CAS will update stale value with correct value
 
         //We never dereference expected_head in push().
         // It is only used as the expected value for CAS,so relaxed ordering is sufficient.
@@ -72,6 +71,7 @@ public:
             //It will be visible only after successful CAS.
             //Only the CAS needs to carry release semantics to ensure visibility of all writes to the node 
             //(especially node->data = value) before publication.
+            //new_node->next = head.load(std::memory_order_relaxed); 
             new_node->next.store(expected_head, std::memory_order_relaxed); //(B)
         
             //The compare_exchange_weak operation will try to set head to new_node, but only if head is still expected_next.
