@@ -5,6 +5,7 @@
 #include <thread>
 #include <unordered_set>
 
+//Safe memory reclamation using Hazard Pointers
 class HazardPointerManager
 {
 private:
