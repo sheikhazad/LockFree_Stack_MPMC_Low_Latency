@@ -30,7 +30,17 @@
 ///Lock-Free Treiber Stack MPMC 
 template <typename T>
 class LockFreeTeiberMPMCStackHazardPointer {
-private:
+private: 
+
+    struct alignas(CACHE_LINE_SIZE) Node 
+    {
+        T data;
+        std::atomic<Node*> next;
+        explicit Node(T const& value) : data(value), next(nullptr) {}
+    };
+
+    alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
+
 
     // Hazard Pointer-1:
     struct RetiredNode
@@ -84,15 +94,6 @@ private:
         }
     }
 
-
-    struct alignas(CACHE_LINE_SIZE) Node 
-    {
-        T data;
-        std::atomic<Node*> next;
-        explicit Node(T const& value) : data(value), next(nullptr) {}
-    };
-
-    alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
     
 public:
     LockFreeTeiberMPMCStackHazardPointer(const LockFreeTeiberMPMCStackHazardPointer&) = delete;
