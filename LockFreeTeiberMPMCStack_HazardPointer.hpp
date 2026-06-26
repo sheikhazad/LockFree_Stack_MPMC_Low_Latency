@@ -155,7 +155,6 @@ public:
 
         // Hazard Pointer-5:
         HazardPointerManager& hp = HazardPointerManager::instance();
-        hp.register_thread(); // safe if called multiple times, or move outside thread entry
         
         while (true) {   
             
