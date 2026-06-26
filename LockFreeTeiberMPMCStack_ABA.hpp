@@ -48,6 +48,8 @@ private:
         {}
     };
 
+    //None of these static_assert is required but for defensive programming only. 
+    //You can ignore these
     static_assert(sizeof(TaggedPtrABA) == 16);
     static_assert(alignof(TaggedPtrABA) == 16);
     static_assert(std::is_trivially_copyable_v<TaggedPtrABA>);
