@@ -32,31 +32,115 @@ void pinThreadToCore(int threadIndex, int numaNode) {
     */
 }
 
-int main() {
-    LockFreeTeiberMPMCStack<int> stack;
-    std::vector<std::thread> threads;
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <chrono>
+
+#include "LockFreeTeiberMPMCStack.hpp"
+#include "LockFreeTeiberMPMCStack_ABA.hpp"
+#include "LockFreeTeiberMPMCStack_EBR.hpp"
+#include "LockFreeTeiberMPMCStack_HazardPointer.hpp"
+
+using namespace std;
+using namespace std::chrono;
+
+// --------------------------------------------
+// Simple timing helper
+// --------------------------------------------
+template <typename F>
+long long measure(const std::string& name, F&& func)
+{
+    using clock = std::chrono::steady_clock;
+
+    auto start = clock::now();
+
+    func();
+
+    auto end = clock::now();
+
+    auto duration =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    std::cout << name << " took: " << duration << " ms\n";
+
+    return duration;
+}
+
+// --------------------------------------------
+// Generic test runner
+// --------------------------------------------
+template <typename Stack>
+void run_test(const string& name)
+{
+    Stack stack;
+
+    vector<thread> threads;
     threads.reserve(NUM_PRODUCERS + NUM_CONSUMERS);
 
-    for (int i = 0; i < NUM_PRODUCERS; ++i) {
-        threads.emplace_back([i, &stack]() { 
-            pinThreadToCore(i, NUMA_NODE_0);
-            for (int j = 0; j < WORKLOAD; ++j) {
-                stack.push(j);
-            }
-        });
-    }
+    // -----------------------------
+    // PRODUCERS
+    // -----------------------------
+    measure(name + " (push phase)", [&]()
+    {
+        for (int i = 0; i < NUM_PRODUCERS; ++i)
+        {
+            threads.emplace_back([i, &stack]()
+            {
+                pinThreadToCore(i, NUMA_NODE_0);
 
-    for (int i = 0; i < NUM_CONSUMERS; ++i) {
-        threads.emplace_back([i, &stack]() { 
-            pinThreadToCore(i, NUMA_NODE_1);
-            int value;
-            while (stack.pop(value)) { }
-        });
-    }
+                for (int j = 0; j < WORKLOAD; ++j)
+                {
+                    stack.push(j);
+                }
+            });
+        }
 
-    for (auto& t : threads) {
-        t.join();
-    }
+        for (auto& t : threads)
+            t.join();
+
+        threads.clear();
+    });
+
+    // -----------------------------
+    // CONSUMERS
+    // -----------------------------
+    measure(name + " (pop phase)", [&]()
+    {
+        for (int i = 0; i < NUM_CONSUMERS; ++i)
+        {
+            threads.emplace_back([i, &stack]()
+            {
+                pinThreadToCore(i, NUMA_NODE_1);
+
+                int value;
+
+                while (true)
+                {
+                    if (!stack.pop(value))
+                        break;
+                }
+            });
+        }
+
+        for (auto& t : threads)
+            t.join();
+    });
+
+    cout << name << " completed\n\n";
+}
+
+// --------------------------------------------
+// MAIN
+// --------------------------------------------
+int main()
+{
+    cout << "=== Lock-Free Stack Benchmark ===\n";
+
+    run_test<LockFreeTeiberMPMCStack<int>>("Base Stack");
+    run_test<LockFreeTeiberMPMCStack_ABA<int>>("ABA Fixed Stack");
+    run_test<LockFreeTeiberMPMCStack_HazardPointer<int>>("Hazard Pointer Stack");
+    run_test<LockFreeTeiberMPMCStack_EBR<int>>("EBR Stack");
 
     return 0;
 }
