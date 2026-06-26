@@ -14,6 +14,16 @@
     - Threads announce which epoch they are working in
     - Retired nodes are stored with an epoch tag
     - Memory is freed only when ALL threads have moved past that epoch
+
+Each thread does:
+enter_epoch()
+  -> work on shared structure
+  -> retire nodes
+leave_epoch()
+
+Reclaimer does:
+-find oldest active thread epoch
+-free everything older than that
 */
 
 class EBRManager
