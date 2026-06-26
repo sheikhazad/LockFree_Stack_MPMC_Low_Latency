@@ -55,15 +55,13 @@ public:
         
         //1. We only need a snapshot of head(expected_head) here.
         // If another thread changes head before the CAS,
-        // compare_exchange_weak() will fail and update expected_head with the current head value for the next iteration. 
-        //ie. CAS fails if head no longer equals expected_head.
+        // compare_exchange_weak() will fail and update expected_head with the current correct head value for the next iteration 
 
-        // and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
         //Doesnt need to be inside while() as CAS will update stale value with correct value
-        //2. We never dereference expected_head in push().
-        // It is only used as the expected value for CAS,
-        // so relaxed ordering is sufficient.
+
+        //We never dereference expected_head in push().
+        // It is only used as the expected value for CAS,so relaxed ordering is sufficient.
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
