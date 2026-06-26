@@ -53,12 +53,17 @@ public:
     void push(T const& value) {
         Node* new_node = new Node(value);// In HFT, use a memory pool
         
-        //1. No need for strcit memory order here, expected_node can hold stale value. 
-        //Consitency with correct value will be achieved by the CAS loop (compare_exchange_weak operation)
-        //CAS will be failed if head is changed by another thread, and expected_next will be updated with the new head value.
+        //1. We only need a snapshot of head here.
+        // If another thread changes head before the CAS,
+        // compare_exchange_weak() will fail and update expected_head with the current head value for the next iteration. 
+        //ie. CAS fails if head no longer equals expected_head.
+
+        // and expected_next will be updated with the new head value.
         //new_node->next = head.load(std::memory_order_relaxed); 
         //Doesnt need to be inside while() as CAS will update stale value with correct value
-        //2. However failing CAS is expensive [see commment in pop()] but here we are not derefrencing expected_head to get expected_head->next
+        //2. We never dereference expected_head in push().
+        // It is only used as the expected value for CAS,
+        // so relaxed ordering is sufficient.
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
         //while(expected_head) ==> wont enter loop if the stack is empty (head == nullptr)
@@ -109,7 +114,9 @@ public:
            }**********************************************************/
 
             if(head.compare_exchange_weak(expected_head, new_node, 
-                    std::memory_order_release, // (C) => (C) will push (A) & (B) above to memory.
+                    std::memory_order_release, // (C) =>// (C) publishes the changes made in (A) and (B).
+                                                 // After this release CAS succeeds, any thread that later
+                                                 // reads head with memory_order_acquire is guaranteed to see those writes.
                                                //A->B->C will be visible to other threads which use acquire to read//Successful CAS will release the new_node                
                     std::memory_order_relaxed) //1. On CAS failure, expected_head is atomically updated
                                                //   with the current value of head.
