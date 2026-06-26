@@ -6,6 +6,19 @@
 #include <unordered_set>
 
 //Safe memory reclamation using Hazard Pointers
+/*
+In pop():
+Without hazard pointers:
+
+Thread A reads old_head
+Thread B pops + deletes old_head
+Thread A crashes → use-after-free
+
+With hazard pointers:
+
+Thread A says: "I am using old_head"
+Thread B sees hazard → does NOT delete => Safe
+*/
 class HazardPointerManager
 {
 private:
