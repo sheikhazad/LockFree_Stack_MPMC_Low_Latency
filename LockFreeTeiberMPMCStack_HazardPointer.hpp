@@ -149,7 +149,17 @@ public:
             // loop retries with the new value
         }
     }
-  
+
+    /*
+    read head
+      ↓
+    set_hazard(head)
+      ↓
+    CAS attempt
+      ↓
+    success → retire
+    failure → retry
+    */
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
 
@@ -166,16 +176,6 @@ public:
             // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             // So, publish immediately after loading old_head.
             hp.set_hazard(old_head);
-    
-            // Safety re-read head AFTER publishing hazard
-            // (prevents race where node is freed between load and hazard set)
-            Node* check = head.load(std::memory_order_acquire);
-            if (check != old_head)
-            {
-                hp.clear_hazard();
-                continue;
-            }
-            ////HP///
           
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
           
