@@ -86,6 +86,7 @@ public:
     }
   
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
+    //Flow: enter_epoch() -> pop() -> retire_node() -> leave_epoch()
     bool pop(T& out) {
 
         //EBR-3:
