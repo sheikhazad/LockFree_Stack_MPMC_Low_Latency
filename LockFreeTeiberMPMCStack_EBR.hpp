@@ -24,20 +24,9 @@
     #define CPU_RELAX() std::this_thread::yield()
 #endif
 
+#include "Constants.hpp"
 #include "EBRManager.hpp" //For Epoch Based Reclamation (EBR)
 
-// Align nodes to cache lines to avoid false sharing
-#ifndef hardware_destructive_interference_size
-#define hardware_destructive_interference_size 64
-#endif
-
-
-constexpr int NUM_PRODUCERS = 4;
-constexpr int NUM_CONSUMERS = 4;
-constexpr int WORKLOAD = 1000;
-constexpr int NUMA_NODE_0 = 0;  // Producers on NUMA node 0
-constexpr int NUMA_NODE_1 = 1;  // Consumers on NUMA node 1
-constexpr size_t CACHE_LINE_SIZE = hardware_destructive_interference_size;
 
 ///Lock-Free Treiber Stack MPMC with EBR (Epoch Based Reclamation)
 template <typename T>
