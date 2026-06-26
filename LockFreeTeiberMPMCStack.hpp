@@ -212,6 +212,9 @@ public:
                 //   2. Memory reclamation (hazard pointers / Epoch-Based Reclamation (EBR) )
                 return true;
              }
+           // CAS failed because another thread modified head first.
+           // Briefly pause before retrying to reduce contention.
+           CPU_RELAX();
         }
         return false;
     }
