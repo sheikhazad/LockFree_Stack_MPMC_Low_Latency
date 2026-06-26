@@ -9,7 +9,18 @@
 #define _GNU_SOURCE  // Required for CPU affinity functions
 #include <sched.h>   // Contains cpu_set_t definition
 #include <pthread.h> // Required for pthread_setaffinity_np()
-#include <immintrin.h> // Required for _mm_pause()
+//#include <immintrin.h> // Required for _mm_pause()
+#if defined(__x86_64__) || defined(_M_X64)
+    #include <immintrin.h>
+    #define CPU_RELAX() _mm_pause()
+
+#elif defined(__aarch64__) || defined(__arm64__)
+    #include <arm_acle.h>
+    #define CPU_RELAX() __yield()
+
+#else
+    #define CPU_RELAX() std::this_thread::yield()
+#endif
 
 // Align nodes to cache lines to avoid false sharing
 #ifndef hardware_destructive_interference_size
@@ -126,11 +137,14 @@ public:
                 //Everything before that is speculative and may be thrown away.
             }       
             // Optional: Add brief pause (_mm_pause()) to reduce unnecessary CAS loop contention
+            /*
             #ifdef __x86_64__
             _mm_pause();  // Lower latency than yield()
             #else
             std::this_thread::yield();
             #endif  // Yield to reduce contention
+            */
+            CPU_RELAX();
  
             // expected_head is updated here on every failure
             // loop retries with the new value
@@ -271,11 +285,7 @@ public:
                     break;
                 }
         
-                #ifdef __x86_64__
-                        _mm_pause();
-                #else
-                        std::this_thread::yield();
-                #endif
+                CPU_RELAX();
             }
    } 
 
