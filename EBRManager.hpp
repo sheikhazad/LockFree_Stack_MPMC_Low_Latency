@@ -137,10 +137,17 @@ public:
         if (retired_list.size() >= 64)
         {
             reclaim();
+            advance_epoch();
         }
     }
 
 private:
+ 
+    // Advance epoch (keeps system moving forward)
+    void advance_epoch()
+    {
+        global_epoch.fetch_add(1, std::memory_order_relaxed);
+    }
 
     // ----------------------------
     // Reclaim safe memory
@@ -184,8 +191,6 @@ private:
             }
         }
 
-        // Advance epoch (keeps system moving forward)
-        global_epoch.store(cur_epoch + 1, std::memory_order_release);
     }
 };
 
