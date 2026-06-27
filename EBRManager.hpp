@@ -34,6 +34,11 @@ private:
     // How long we delay reclamation (helps avoid race edge cases)
     static constexpr uint64_t RETIRE_DELAY = 2;
 
+    std::atomic<int> next_tid{0};
+
+    // Global epoch (advanced during reclamation)
+    std::atomic<uint64_t> global_epoch{0};
+
     // ----------------------------
     // Thread state tracking
     // ----------------------------
@@ -46,9 +51,6 @@ private:
     };
 
     ThreadState threads[MAX_THREADS];
-
-    // Global epoch (advanced during reclamation)
-    std::atomic<uint64_t> global_epoch{0};
 
     // ----------------------------
     // Retired node entry
@@ -63,8 +65,6 @@ private:
     // Thread-local storage
     static thread_local int tid;
     static thread_local std::vector<RetiredNode> retired_list;
-
-    std::atomic<int> next_tid{0};
 
 public:
 
