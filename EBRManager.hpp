@@ -85,7 +85,7 @@ public:
         tid = id;
 
         //Reserve for each thread (not per object, not per constructor)
-        retired_list.reserve(64);
+        retired_list.reserve(64);// or 128 / 256 depending on expected workload
 
         return tid;
     }
