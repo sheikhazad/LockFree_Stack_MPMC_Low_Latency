@@ -99,6 +99,15 @@ public:
 
         uint64_t e = global_epoch.load(std::memory_order_acquire);
 
+        /*relaxed epoch store:
+        ✔ just data update
+        ✔ no ordering needed
+
+        release active store so that other thread which reclaim sees it:
+        ✔ publishes thread state
+        ✔ guarantees epoch visibility to reclaimer
+        ✔ prevents stale epoch observation*/
+
         threads[id].epoch.store(e, std::memory_order_relaxed);
         threads[id].active.store(true, std::memory_order_release);
     }
