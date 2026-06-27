@@ -134,25 +134,27 @@ private:
     void reclaim()
     {
         uint64_t cur_epoch = global_epoch.load(std::memory_order_acquire);
+        uint64_t oldest_active_thread_epoch = cur_epoch;
 
-        uint64_t min_epoch = cur_epoch;
-
-        // Find oldest active thread epoch
+        // Find oldest epoch among all active threads
         for (int i = 0; i < MAX_THREADS; ++i)
         {
             if (threads[i].active.load(std::memory_order_acquire))
             {
                 uint64_t e = threads[i].epoch.load(std::memory_order_acquire);
-                if (e < min_epoch)
-                    min_epoch = e;
+                if (e < oldest_active_thread_epoch)
+                    oldest_active_thread_epoch = e;
             }
         }
 
-        // Safe epoch threshold
+        // Safe to reclaim anything sufficiently older than
+        // the oldest active thread's epoch
         uint64_t safe_epoch =
-            (min_epoch > RETIRE_DELAY) ? (min_epoch - RETIRE_DELAY) : 0;
+            (oldest_active_thread_epoch > RETIRE_DELAY) ? (oldest_active_thread_epoch - RETIRE_DELAY) : 0;
 
-        // Reclaim loop
+        //Reclaim only nodes whose retire epoch is older than
+        //(oldest active thread's epoch - RETIRE_DELAY).
+        //RETIRE_DELAY provides an extra safety buffer before deletion.
         auto it = retired_list.begin();
 
         while (it != retired_list.end())
