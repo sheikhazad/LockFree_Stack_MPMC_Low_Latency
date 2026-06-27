@@ -63,8 +63,9 @@ private:
     };
 
     // Thread-local storage
-    static thread_local int tid;
-    static thread_local std::vector<RetiredNode> retired_list;
+    //INLINE THREAD_LOCAL (no out-of-class definition needed)
+    inline static thread_local int tid = -1;
+    inline static thread_local std::vector<RetiredNode> retired_list;
 
 public:
 
@@ -182,5 +183,5 @@ private:
 // ----------------------------
 // Thread-local definitions
 // ----------------------------
-thread_local int EBRManager::tid = -1;
-thread_local std::vector<EBRManager::RetiredNode> EBRManager::retired_list;
+//thread_local int EBRManager::tid = -1;
+//thread_local std::vector<EBRManager::RetiredNode> EBRManager::retired_list;
