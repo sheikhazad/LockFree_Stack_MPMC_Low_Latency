@@ -82,6 +82,10 @@ public:
             std::abort(); // too many threads
 
         tid = id;
+
+        //Reserve for each thread (not per object, not per constructor)
+        retired_list.reserve(64);
+
         return tid;
     }
 
