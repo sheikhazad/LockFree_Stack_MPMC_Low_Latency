@@ -137,8 +137,8 @@ public:
         // Batch cleanup trigger
         if (retired_list.size() >= 256)
         {
-            reclaim();
             advance_epoch();
+            reclaim();
         }
     }
 
