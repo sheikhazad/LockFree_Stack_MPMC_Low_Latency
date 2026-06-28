@@ -110,6 +110,8 @@ public:
 
         threads[id].epoch.store(e, std::memory_order_relaxed);
         threads[id].active.store(true, std::memory_order_release);
+
+        advance_epoch();
     }
 
     // ----------------------------
@@ -137,7 +139,6 @@ public:
         if (retired_list.size() >= 64)
         {
             reclaim();
-            advance_epoch();
         }
     }
 
