@@ -111,7 +111,6 @@ public:
         threads[id].epoch.store(e, std::memory_order_relaxed);
         threads[id].active.store(true, std::memory_order_release);
 
-        advance_epoch();
     }
 
     // ----------------------------
@@ -136,9 +135,10 @@ public:
         });
 
         // Batch cleanup trigger
-        if (retired_list.size() >= 64)
+        if (retired_list.size() >= 256)
         {
             reclaim();
+            advance_epoch();
         }
     }
 
