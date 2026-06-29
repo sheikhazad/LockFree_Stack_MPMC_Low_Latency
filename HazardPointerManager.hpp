@@ -34,8 +34,7 @@ private:
     HazardRecord records[MAX_THREADS];
 
     std::atomic<int> next_tid{0};
-
-    static thread_local int tid;
+    inline static thread_local int tid = -1;
 
     HazardPointerManager() = default;
 
@@ -96,4 +95,4 @@ public:
 };
 
 // thread-local slot id
-inline thread_local int HazardPointerManager::tid = -1;
+//inline thread_local int HazardPointerManager::tid = -1;
