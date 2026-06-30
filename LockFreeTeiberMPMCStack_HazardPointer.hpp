@@ -43,17 +43,8 @@ private:
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
 
 
-    // Hazard Pointer-1:
-    struct RetiredNode
-    {
-        Node* ptr;
-        RetiredNode* next;
-    };
-
-    // Hazard Pointer-2:
-    inline static thread_local RetiredNode* retired_list = nullptr;
     inline static thread_local int retired_count = 0; //Without inline, we cant intialise
-    static constexpr int RETIRE_THRESHOLD = 40;
+
 
     // Hazard Pointer-3:
     void retire_node(Node* node)
