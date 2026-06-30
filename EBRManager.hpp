@@ -30,13 +30,11 @@ class EBRManager
 {
 private:
     static constexpr int MAX_THREADS = 128;
-
-    // How long we delay reclamation (helps avoid race edge cases)
+    //How long we delay reclamation (helps avoid race edge cases)
     static constexpr uint64_t RETIRE_DELAY = 2;
 
     std::atomic<int> next_tid{0};
-
-    // Global epoch (advanced during reclamation)
+    //Global epoch (advanced during reclamation)
     std::atomic<uint64_t> global_epoch{0};
 
     // ----------------------------
