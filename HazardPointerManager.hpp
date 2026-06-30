@@ -23,30 +23,28 @@ class HazardPointerManager
 {
 private:
     static constexpr int MAX_THREADS = 128;
-    static constexpr int RETIRE_THRESHOLD = 256;
-
-    std::atomic<int> next_tid{0};
+    static constexpr size_t RETIRE_THRESHOLD = 256;
 
     struct HazardRecord
     {
-        std::atomic<void*> pointer;
-
-        HazardRecord() : pointer(nullptr) {}
+        std::atomic<void*> pointer{nullptr};
     };
 
     HazardRecord records[MAX_THREADS];
 
+    std::atomic<int> next_tid{0};
+    inline static thread_local int tid = -1;
+
+    // ============================
+    // Retired node (EBR-style)
+    // ============================
     struct RetiredNode
     {
         void* ptr;
         void (*deleter)(void*);
     };
 
-
-    inline static thread_local int tid = -1;
     inline static thread_local std::vector<RetiredNode> retired_list;
-    
-    HazardPointerManager() = default;
 
 public:
     static HazardPointerManager& instance()
@@ -55,58 +53,41 @@ public:
         return hp;
     }
 
-    // ------------------------------------------------------------
-    // Register thread once → assigns a fixed slot
-    // ------------------------------------------------------------
+    // ----------------------------
+    // register thread
+    // ----------------------------
     void register_thread()
     {
-        if (tid != -1)
-            return;
+        if (tid != -1) return;
 
         int id = next_tid.fetch_add(1, std::memory_order_relaxed);
-
         if (id >= MAX_THREADS)
-            throw std::runtime_error("Too many threads for Hazard Pointers");
+            throw std::runtime_error("Too many threads");
 
         tid = id;
-        
-        //Reserve for each thread (not per object, not per constructor)
-        retired_list.reserve(64);// or 128 / 256 depending on expected workload
+
+        // same as EBR reserve()
+        retired_list.reserve(256);
     }
 
-    // ------------------------------------------------------------
-    // Publish hazard pointer
-    // ------------------------------------------------------------
+    // ----------------------------
+    // protect / unprotect
+    // ----------------------------
     void set_hazard(void* ptr)
     {
         register_thread();
         records[tid].pointer.store(ptr, std::memory_order_release);
     }
 
-    // ------------------------------------------------------------
-    // Clear hazard pointer
-    // ------------------------------------------------------------
     void clear_hazard()
     {
         if (tid == -1) return;
         records[tid].pointer.store(nullptr, std::memory_order_release);
     }
 
-    // ------------------------------------------------------------
-    // Check if a pointer is currently protected
-    // (used during reclamation scan)
-    // ------------------------------------------------------------
-    bool is_hazard(void* ptr)
-    {
-        for (int i = 0; i < MAX_THREADS; ++i)
-        {
-            if (records[i].pointer.load(std::memory_order_acquire) == ptr)
-                return true;
-        }
-        return false;
-    }
-
-
+    // ----------------------------
+    // retirement (EBR-style)
+    // ----------------------------
     template<typename T>
     void retire_node(T* node)
     {
@@ -117,14 +98,44 @@ public:
                 delete static_cast<T*>(p);
             }
         });
-    
-        if(retired_list.size() >= RETIRE_THRESHOLD)
+
+        if (retired_list.size() >= RETIRE_THRESHOLD)
         {
             reclaim();
         }
     }
 
-};
+    // ----------------------------
+    // reclaim (MOVED from stack)
+    // ----------------------------
+    void reclaim()
+    {
+        auto it = retired_list.begin();
 
-// thread-local slot id
-//inline thread_local int HazardPointerManager::tid = -1;
+        while (it != retired_list.end())
+        {
+            if (!is_hazard(it->ptr))
+            {
+                it->deleter(it->ptr);
+                it = retired_list.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    // ----------------------------
+    // hazard scan
+    // ----------------------------
+    bool is_hazard(void* ptr)
+    {
+        for (int i = 0; i < MAX_THREADS; ++i)
+        {
+            if (records[i].pointer.load(std::memory_order_acquire) == ptr)
+                return true;
+        }
+        return false;
+    }
+};
