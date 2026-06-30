@@ -80,7 +80,7 @@ public:
         int id = next_tid.fetch_add(1, std::memory_order_relaxed);
 
         if (id >= MAX_THREADS)
-            std::abort(); // too many threads
+            throw std::runtime_error("Too many threads for EBR");
 
         tid = id;
 
