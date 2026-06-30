@@ -23,6 +23,9 @@ class HazardPointerManager
 {
 private:
     static constexpr int MAX_THREADS = 128;
+    static constexpr int RETIRE_THRESHOLD = 256;
+
+    std::atomic<int> next_tid{0};
 
     struct HazardRecord
     {
@@ -33,9 +36,14 @@ private:
 
     HazardRecord records[MAX_THREADS];
 
-    std::atomic<int> next_tid{0};
-    inline static thread_local int tid = -1;
+    struct RetiredNode
+    {
+        Node* ptr;
+    };
 
+    inline static thread_local int tid = -1;
+    inline static thread_local std::vector<RetiredNode> retired_list;
+    
     HazardPointerManager() = default;
 
 public:
@@ -59,6 +67,9 @@ public:
             throw std::runtime_error("Too many threads for Hazard Pointers");
 
         tid = id;
+        
+        //Reserve for each thread (not per object, not per constructor)
+        retired_list.reserve(64);// or 128 / 256 depending on expected workload
     }
 
     // ------------------------------------------------------------
