@@ -38,8 +38,10 @@ private:
 
     struct RetiredNode
     {
-        Node* ptr;
+        void* ptr;
+        void (*deleter)(void*);
     };
+
 
     inline static thread_local int tid = -1;
     inline static thread_local std::vector<RetiredNode> retired_list;
@@ -103,6 +105,25 @@ public:
         }
         return false;
     }
+
+
+    template<typename T>
+    void retire_node(T* node)
+    {
+        retired_list.push_back({
+            node,
+            [](void* p)
+            {
+                delete static_cast<T*>(p);
+            }
+        });
+    
+        if(retired_list.size() >= RETIRE_THRESHOLD)
+        {
+            reclaim();
+        }
+    }
+
 };
 
 // thread-local slot id
