@@ -45,7 +45,8 @@ private:
 public:
 
     // ----------------------------
-    // register thread
+    // Register thread once.
+    // Same as EBR::register_thread()
     // ----------------------------
     void register_thread()
     {
