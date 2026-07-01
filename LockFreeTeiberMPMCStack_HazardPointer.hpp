@@ -56,10 +56,7 @@ public:
     LockFreeTeiberMPMCStackHazardPointer() = default;  // Default constructor
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
-    void push(T const& value) {
-
-        //Hazard Pointer-2: => Same as EBR
-        hp.register_thread(); 
+    void push(T const& value) { 
         
         Node* new_node = new Node(value);// In HFT, use a memory pool
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
@@ -123,7 +120,7 @@ public:
             if (!old_head) 
               return false; 
 
-            // Hazard Pointer-3:
+            // Hazard Pointer-2:
             // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             // So, publish immediately after loading old_head.
             hp.set_hazard(old_head); //Same as ebr.enter_epoch()
@@ -137,7 +134,7 @@ public:
                 out = old_head->data;
 
                 //delete old_head
-                // Hazard Pointer-4:
+                // Hazard Pointer-3:
                 //Instead of delete, retire old_head
                 // Safe memory reclamation
                 hp.retire_node(old_head);
@@ -145,7 +142,7 @@ public:
                 return true;
              }
           
-          // Hazard Pointer-5:
+          // Hazard Pointer-4:
           //Clear hazard in all exit paths
           hp.clear_hazard(); //Same as ebr.leave_epoch()
           
