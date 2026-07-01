@@ -113,7 +113,6 @@ public:
     // ----------------------------
     void leave_epoch()
     {
-        register_thread(); //Generate tid
         threads[tid].active.store(false, std::memory_order_release);
     }
 
