@@ -46,9 +46,9 @@ public:
 
     // ----------------------------
     // Register thread once.
-    // Same as EBR::register_thread()
+    // Same as EBR::()
     // ----------------------------
-    void register_thread()
+    void ()
     {
         if (tid != -1) return;
 
@@ -67,7 +67,6 @@ public:
     // ----------------------------
     void set_hazard(void* ptr)
     {
-        register_thread();
         records[tid].pointer.store(ptr, std::memory_order_release);
     }
 
