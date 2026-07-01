@@ -68,24 +68,21 @@ private:
 public:
 
     // ----------------------------
-    // Register thread once
+    // Register thread once.
+    // Same as HP::register_thread()
     // ----------------------------
-    int register_thread()
+    void register_thread()
     {
-        if (tid != -1)
-            return tid;
+        if (tid != -1) 
+            return;
 
         int id = next_tid.fetch_add(1, std::memory_order_relaxed);
-
         if (id >= MAX_THREADS)
-            throw std::runtime_error("Too many threads for EBR");
+            throw std::runtime_error("Too many threads");
 
         tid = id;
-
-        //Reserve for each thread (not per object, not per constructor)
-        retired_list.reserve(64);// or 128 / 256 depending on expected workload
-
-        return tid;
+        
+        retired_list.reserve(256);
     }
 
     // ----------------------------
@@ -93,7 +90,7 @@ public:
     // ----------------------------
     void enter_epoch()
     {
-        int id = register_thread();
+        register_thread(); //Generate tid
 
         uint64_t e = global_epoch.load(std::memory_order_acquire);
 
@@ -106,8 +103,8 @@ public:
         ✔ guarantees epoch visibility to reclaimer
         ✔ prevents stale epoch observation*/
 
-        threads[id].epoch.store(e, std::memory_order_relaxed);
-        threads[id].active.store(true, std::memory_order_release);
+        threads[tid].epoch.store(e, std::memory_order_relaxed);
+        threads[tid].active.store(true, std::memory_order_release);
 
     }
 
@@ -116,8 +113,8 @@ public:
     // ----------------------------
     void leave_epoch()
     {
-        int id = register_thread();
-        threads[id].active.store(false, std::memory_order_release);
+        register_thread(); //Generate tid
+        threads[tid].active.store(false, std::memory_order_release);
     }
 
     // ----------------------------
