@@ -33,6 +33,9 @@ template <typename T>
 class LockFreeTeiberMPMCStackHazardPointer {
 private: 
 
+    //Hazard Pointer-1:
+    HazardPointerManager hp;
+
     struct alignas(CACHE_LINE_SIZE) Node 
     {
         T data;
@@ -41,50 +44,6 @@ private:
     };
 
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
-
-
-    inline static thread_local int retired_count = 0; //Without inline, we cant intialise
-
-
-    // Hazard Pointer-3:
-    void retire_node(Node* node)
-    {
-        node->next.store(nullptr, std::memory_order_relaxed);
-    
-        RetiredNode* r = new RetiredNode{node, retired_list};
-        retired_list = r;
-        retired_count++;
-    
-        if (retired_count >= RETIRE_THRESHOLD)
-        {
-            scan_and_reclaim();
-        }
-    }
-
-    // Hazard Pointer-4:
-    void scan_and_reclaim()
-    {
-        HazardPointerManager& hp = HazardPointerManager::instance();
-    
-        RetiredNode** current = &retired_list;
-    
-        while (*current)
-        {
-            RetiredNode* entry = *current;
-    
-            if (!hp.is_hazard(entry->ptr))
-            {
-                *current = entry->next;
-                delete entry->ptr;
-                delete entry;
-                retired_count--;
-            }
-            else
-            {
-                current = &((*current)->next);
-            }
-        }
-    }
 
     
 public:
@@ -98,6 +57,10 @@ public:
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) {
+
+        //Hazard Pointer-2:
+        hp.register_thread();
+        
         Node* new_node = new Node(value);// In HFT, use a memory pool
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
 
@@ -153,9 +116,6 @@ public:
     */
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
-
-        // Hazard Pointer-5:
-        HazardPointerManager& hp = HazardPointerManager::instance();
         
         while (true) {   
             
@@ -163,7 +123,7 @@ public:
             if (!old_head) 
               return false; 
 
-            // Hazard Pointer-6:
+            // Hazard Pointer-3:
             // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             // So, publish immediately after loading old_head.
             hp.set_hazard(old_head);
@@ -177,16 +137,15 @@ public:
                 out = old_head->data;
 
                 //delete old_head
-                // Hazard Pointer-7:
+                // Hazard Pointer-4:
                 //Instead of delete, retire old_head
                 // Safe memory reclamation
-                hp.clear_hazard();
-                retire_node(old_head);
+                hp.retire_node(old_head);
                
                 return true;
              }
           
-          // Hazard Pointer-8:
+          // Hazard Pointer-5:
           //Clear hazard in all exit paths
           hp.clear_hazard();
           
