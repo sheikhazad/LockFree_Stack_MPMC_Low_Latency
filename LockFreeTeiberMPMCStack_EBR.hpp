@@ -92,7 +92,8 @@ public:
     bool pop(T& out) {
 
         //EBR-2:
-        ebr.enter_epoch(); // internally calls register_thread()
+        ebr.init_thread();   // once per thread
+        ebr.enter_epoch();
         
         while (true) {   
             
