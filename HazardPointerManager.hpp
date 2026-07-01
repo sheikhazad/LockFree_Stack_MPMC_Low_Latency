@@ -45,10 +45,10 @@ private:
 public:
 
     // ----------------------------
-    // Register thread once.
+    // Init thread once.
     // Same as EBR::()
     // ----------------------------
-    void ()
+    void init_thread()
     {
         if (tid != -1) return;
 
