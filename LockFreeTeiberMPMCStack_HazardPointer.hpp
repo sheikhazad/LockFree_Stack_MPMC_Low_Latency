@@ -58,8 +58,8 @@ public:
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) {
 
-        //Hazard Pointer-2:
-        hp.register_thread();
+        //Hazard Pointer-2: => Same as EBR
+        hp.register_thread(); 
         
         Node* new_node = new Node(value);// In HFT, use a memory pool
         Node* expected_head = head.load(std::memory_order_relaxed); //(A)
@@ -126,7 +126,7 @@ public:
             // Hazard Pointer-3:
             // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             // So, publish immediately after loading old_head.
-            hp.set_hazard(old_head);
+            hp.set_hazard(old_head); //Same as ebr.enter_epoch()
           
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
           
@@ -147,7 +147,7 @@ public:
           
           // Hazard Pointer-5:
           //Clear hazard in all exit paths
-          hp.clear_hazard();
+          hp.clear_hazard(); //Same as ebr.leave_epoch()
           
         }
         return false;
