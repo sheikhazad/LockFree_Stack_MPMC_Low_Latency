@@ -24,6 +24,7 @@ class HazardPointerManager
 private:
     static constexpr int MAX_THREADS = 128;
     static constexpr size_t RETIRE_THRESHOLD = 256;
+    std::atomic<int> next_tid{0};
 
     struct HazardRecord
     {
@@ -32,26 +33,16 @@ private:
 
     HazardRecord records[MAX_THREADS];
 
-    std::atomic<int> next_tid{0};
-    inline static thread_local int tid = -1;
-
-    // ============================
-    // Retired node (EBR-style)
-    // ============================
     struct RetiredNode
     {
         void* ptr;
         void (*deleter)(void*);
     };
 
+    inline static thread_local int tid = -1;
     inline static thread_local std::vector<RetiredNode> retired_list;
 
 public:
-    static HazardPointerManager& instance()
-    {
-        static HazardPointerManager hp;
-        return hp;
-    }
 
     // ----------------------------
     // register thread
@@ -71,7 +62,7 @@ public:
     }
 
     // ----------------------------
-    // protect / unprotect
+    // Same as EBR::enter_epoch()
     // ----------------------------
     void set_hazard(void* ptr)
     {
@@ -79,6 +70,9 @@ public:
         records[tid].pointer.store(ptr, std::memory_order_release);
     }
 
+    // ----------------------------
+    // Same as EBR::leave_epoch()
+    // ----------------------------
     void clear_hazard()
     {
         if (tid == -1) return;
@@ -106,7 +100,7 @@ public:
     }
 
     // ----------------------------
-    // reclaim (MOVED from stack)
+    // reclaim
     // ----------------------------
     void reclaim()
     {
