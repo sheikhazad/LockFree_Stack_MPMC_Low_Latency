@@ -156,7 +156,7 @@ private:
         // Find oldest epoch among all active threads
         for (int i = 0; i < MAX_THREADS; ++i)
         {
-            if (threads[i].active.load(std::memory_order_acquire))
+            if (threads[i].active.load(std::memory_order_relaxed))
             {
                 uint64_t e = threads[i].epoch.load(std::memory_order_acquire);
                 if (e < oldest_active_thread_epoch)
