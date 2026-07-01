@@ -69,9 +69,9 @@ public:
 
     // ----------------------------
     // Register thread once.
-    // Same as HP::register_thread()
+    // Same as HP::init_thread()
     // ----------------------------
-    void register_thread()
+    void init_thread()
     {
         if (tid != -1) 
             return;
@@ -85,13 +85,12 @@ public:
         retired_list.reserve(256);
     }
 
+
     // ----------------------------
     // Enter critical region
     // ----------------------------
     void enter_epoch()
     {
-        register_thread(); //Generate tid
-
         uint64_t e = global_epoch.load(std::memory_order_acquire);
 
         /*relaxed epoch store:
