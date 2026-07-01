@@ -114,7 +114,7 @@ public:
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
         
-        hp.register_thread();   // once per pop invocation (or per thread)
+        hp.init_thread();   // once per pop invocation (or per thread)
         
         while (true) {   
             
