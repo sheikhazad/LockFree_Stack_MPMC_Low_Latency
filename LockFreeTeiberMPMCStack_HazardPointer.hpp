@@ -114,6 +114,8 @@ public:
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
         
+        hp.register_thread();   // once per pop invocation (or per thread)
+        
         while (true) {   
             
             Node* old_head = head.load(std::memory_order_acquire);
