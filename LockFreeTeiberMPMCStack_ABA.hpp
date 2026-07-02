@@ -40,6 +40,7 @@ private:
 
     //This is minimum enhancement for ABA with changes/addition from ABA-1 to ABA-9
     //ABA-1: Addition
+    //Most modern CPUs: 16-byte loads/stores can be atomic only if aligned to 16 bytes
     struct alignas(16) TaggedPtrABA
     {
         Node* ptr;
