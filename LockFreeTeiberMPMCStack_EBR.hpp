@@ -108,7 +108,7 @@ public:
           
             Node* new_head = old_head->next.load(std::memory_order_relaxed); //(E-1)
             if (head.compare_exchange_weak(old_head, new_head, 
-                    std::memory_order_acq_rel, 
+                    std::memory_order_acquire, 
                     std::memory_order_relaxed)) 
              {
                 out = old_head->data;
