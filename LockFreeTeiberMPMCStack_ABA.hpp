@@ -29,7 +29,7 @@
 
 
 template <typename T>
-class LockFreeTeiberMPMCStackABA {
+class LockFreeTreiberMPMCStackABA {
 private:
     struct alignas(CACHE_LINE_SIZE) Node 
     {
@@ -65,13 +65,13 @@ private:
     alignas(CACHE_LINE_SIZE) std::atomic<TaggedPtrABA> _head{ TaggedPtrABA{nullptr, 0} };
     
 public:
-    LockFreeTeiberMPMCStackABA(const LockFreeTeiberMPMCStackABA&) = delete;
-    LockFreeTeiberMPMCStackABA& operator=(const LockFreeTeiberMPMCStackABA&) = delete;
-    LockFreeTeiberMPMCStackABA(LockFreeTeiberMPMCStackABA&&) = delete;
-    //LockFreeTeiberMPMCStackABA(LockFreeTeiberMPMCStackABA&& other) noexcept : _head(std::move(other._head)) { }        
-    LockFreeTeiberMPMCStackABA& operator=(LockFreeTeiberMPMCStackABA&&) = delete;
+    LockFreeTreiberMPMCStackABA(const LockFreeTreiberMPMCStackABA&) = delete;
+    LockFreeTreiberMPMCStackABA& operator=(const LockFreeTreiberMPMCStackABA&) = delete;
+    LockFreeTreiberMPMCStackABA(LockFreeTreiberMPMCStackABA&&) = delete;
+    //LockFreeTreiberMPMCStackABA(LockFreeTreiberMPMCStackABA&& other) noexcept : _head(std::move(other._head)) { }        
+    LockFreeTreiberMPMCStackABA& operator=(LockFreeTreiberMPMCStackABA&&) = delete;
 
-    LockFreeTeiberMPMCStackABA() = default;
+    LockFreeTreiberMPMCStackABA() = default;
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) {
@@ -174,7 +174,7 @@ public:
     }
 
     //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
-    ~LockFreeTeiberMPMCStackABA() {
+    ~LockFreeTreiberMPMCStackABA() {
         //ABA-11:
         //Node* current = _head.exchange(nullptr, std::memory_order_relaxed);
         TaggedPtrABA cur = _head.exchange(TaggedPtrABA{nullptr, 0}, std::memory_order_relaxed);
