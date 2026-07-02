@@ -22,9 +22,12 @@ Thread B sees hazard → does NOT delete => Safe
 class HazardPointerManager
 {
 private:
+    //int enough for max thread 128
     static constexpr int MAX_THREADS = 128;
-    static constexpr size_t RETIRE_THRESHOLD = 256;
     std::atomic<int> next_tid{0};
+
+    static constexpr size_t RETIRE_THRESHOLD = 256;
+    
 
     struct HazardRecord
     {
