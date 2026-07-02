@@ -1,7 +1,7 @@
-#include "LockFreeTeiberMPMCStack.hpp"
-#include "LockFreeTeiberMPMCStack_ABA.hpp"
-#include "LockFreeTeiberMPMCStack_EBR.hpp"
-#include "LockFreeTeiberMPMCStack_HazardPointer.hpp"
+#include "LockFreeTreiberMPMCStack.hpp"
+#include "LockFreeTreiberMPMCStack_ABA.hpp"
+#include "LockFreeTreiberMPMCStack_EBR.hpp"
+#include "LockFreeTreiberMPMCStack_HazardPointer.hpp"
 
 
  /*Optional: NUMA-aware CPU pinning function
@@ -37,10 +37,10 @@ void pinThreadToCore(int threadIndex, int numaNode) {
 #include <vector>
 #include <chrono>
 
-#include "LockFreeTeiberMPMCStack.hpp"
-#include "LockFreeTeiberMPMCStack_ABA.hpp"
-#include "LockFreeTeiberMPMCStack_EBR.hpp"
-#include "LockFreeTeiberMPMCStack_HazardPointer.hpp"
+#include "LockFreeTreiberMPMCStack.hpp"
+#include "LockFreeTreiberMPMCStack_ABA.hpp"
+#include "LockFreeTreiberMPMCStack_EBR.hpp"
+#include "LockFreeTreiberMPMCStack_HazardPointer.hpp"
 
 using namespace std;
 using namespace std::chrono;
@@ -141,10 +141,10 @@ int main()
 {
     cout << "=== Lock-Free Stack Benchmark ===\n";
 
-    run_test<LockFreeTeiberMPMCStack<int>>("Base Stack");
-    run_test<LockFreeTeiberMPMCStackABA<int>>("ABA Fixed Stack");
-    run_test<LockFreeTeiberMPMCStackHazardPointer<int>>("Hazard Pointer Stack");
-    run_test<LockFreeTeiberMPMCStackEBR<int>>("EBR Stack");
+    run_test<LockFreeTreiberMPMCStack<int>>("Base Stack");
+    run_test<LockFreeTreiberMPMCStackABA<int>>("ABA Fixed Stack");
+    run_test<LockFreeTreiberMPMCStackHazardPointer<int>>("Hazard Pointer Stack");
+    run_test<LockFreeTreiberMPMCStackEBR<int>>("EBR Stack");
 
     return 0;
 }
