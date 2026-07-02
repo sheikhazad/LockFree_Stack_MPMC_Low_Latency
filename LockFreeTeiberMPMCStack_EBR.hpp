@@ -30,7 +30,7 @@
 
 ///Lock-Free Treiber Stack MPMC with EBR (Epoch Based Reclamation)
 template <typename T>
-class LockFreeTeiberMPMCStackEBR {
+class LockFreeTreiberMPMCStackEBR {
 private:
 
     //EBR-1: 
@@ -47,13 +47,13 @@ private:
     alignas(CACHE_LINE_SIZE) std::atomic<Node*> head{nullptr};  
     
 public:
-    LockFreeTeiberMPMCStackEBR(const LockFreeTeiberMPMCStackEBR&) = delete;
-    LockFreeTeiberMPMCStackEBR& operator=(const LockFreeTeiberMPMCStackEBR&) = delete;
-    LockFreeTeiberMPMCStackEBR(LockFreeTeiberMPMCStackEBR&&) = delete;
-    //LockFreeTeiberMPMCStackEBR(LockFreeTeiberMPMCStackEBR&& other) noexcept : head(std::move(other.head)) { }        
-    LockFreeTeiberMPMCStackEBR& operator=(LockFreeTeiberMPMCStackEBR&&) = delete;
+    LockFreeTreiberMPMCStackEBR(const LockFreeTreiberMPMCStackEBR&) = delete;
+    LockFreeTreiberMPMCStackEBR& operator=(const LockFreeTreiberMPMCStackEBR&) = delete;
+    LockFreeTreiberMPMCStackEBR(LockFreeTreiberMPMCStackEBR&&) = delete;
+    //LockFreeTreiberMPMCStackEBR(LockFreeTreiberMPMCStackEBR&& other) noexcept : head(std::move(other.head)) { }        
+    LockFreeTreiberMPMCStackEBR& operator=(LockFreeTreiberMPMCStackEBR&&) = delete;
 
-    LockFreeTeiberMPMCStackEBR() = default;  // Default constructor
+    LockFreeTreiberMPMCStackEBR() = default;  // Default constructor
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     //NO EBR in PUSH() except in POP()
@@ -132,7 +132,7 @@ public:
     }
 
     //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
-    ~LockFreeTeiberMPMCStackEBR() {
+    ~LockFreeTreiberMPMCStackEBR() {
         Node* current = head.exchange(nullptr, std::memory_order_relaxed);
         while (current) {
            Node* next = current->next.load(std::memory_order_relaxed);
