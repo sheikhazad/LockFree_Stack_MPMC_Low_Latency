@@ -30,7 +30,7 @@
 
 ///Lock-Free Treiber Stack MPMC 
 template <typename T>
-class LockFreeTeiberMPMCStackHazardPointer {
+class LockFreeTreiberMPMCStackHazardPointer {
 private: 
 
     //Hazard Pointer-1:
@@ -47,13 +47,13 @@ private:
 
     
 public:
-    LockFreeTeiberMPMCStackHazardPointer(const LockFreeTeiberMPMCStackHazardPointer&) = delete;
-    LockFreeTeiberMPMCStackHazardPointer& operator=(const LockFreeTeiberMPMCStackHazardPointer&) = delete;
-    LockFreeTeiberMPMCStackHazardPointer(LockFreeTeiberMPMCStackHazardPointer&&) = delete;
-    //LockFreeTeiberMPMCStackHazardPointer(LockFreeTeiberMPMCStackHazardPointer&& other) noexcept : head(std::move(other.head)) { }        
-    LockFreeTeiberMPMCStackHazardPointer& operator=(LockFreeTeiberMPMCStackHazardPointer&&) = delete;
+    LockFreeTreiberMPMCStackHazardPointer(const LockFreeTreiberMPMCStackHazardPointer&) = delete;
+    LockFreeTreiberMPMCStackHazardPointer& operator=(const LockFreeTreiberMPMCStackHazardPointer&) = delete;
+    LockFreeTreiberMPMCStackHazardPointer(LockFreeTreiberMPMCStackHazardPointer&&) = delete;
+    //LockFreeTreiberMPMCStackHazardPointer(LockFreeTreiberMPMCStackHazardPointer&& other) noexcept : head(std::move(other.head)) { }        
+    LockFreeTreiberMPMCStackHazardPointer& operator=(LockFreeTreiberMPMCStackHazardPointer&&) = delete;
 
-    LockFreeTeiberMPMCStackHazardPointer() = default;  // Default constructor
+    LockFreeTreiberMPMCStackHazardPointer() = default;  // Default constructor
     
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) { 
@@ -158,7 +158,7 @@ public:
     }
 
     //Single threaded when all other threads have joined and stopped using stack. So, memory_order_relaxed
-    ~LockFreeTeiberMPMCStackHazardPointer() {
+    ~LockFreeTreiberMPMCStackHazardPointer() {
         Node* current = head.exchange(nullptr, std::memory_order_relaxed);
         while (current) {
            Node* next = current->next.load(std::memory_order_relaxed);
