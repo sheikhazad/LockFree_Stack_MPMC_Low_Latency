@@ -39,6 +39,8 @@ private:
     //Global epoch (advanced during reclamation)
     std::atomic<uint64_t> global_epoch{0};
 
+    static constexpr size_t RETIRE_THRESHOLD = 256;
+
     // ----------------------------
     // Thread state tracking
     // ----------------------------
