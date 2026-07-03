@@ -130,7 +130,7 @@ public:
         });
 
         // Batch cleanup trigger
-        if (retired_list.size() >= 256)
+        if (retired_list.size() >= RETIRE_THRESHOLD)
         {
             advance_epoch();
             reclaim();
