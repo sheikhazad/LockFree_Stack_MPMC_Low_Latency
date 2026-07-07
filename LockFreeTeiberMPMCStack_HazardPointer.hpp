@@ -114,6 +114,7 @@ public:
     //:::TIPS: acquire->relaxed->acquire->relaxed ::::::
     bool pop(T& out) {
         
+        //Hazard Pointer-2:
         hp.init_thread();   // once per pop invocation (or per thread)
         
         while (true) {   
@@ -122,7 +123,7 @@ public:
             if (!old_head) 
               return false; 
 
-            // Hazard Pointer-2:
+            // Hazard Pointer-3:
             // publish hazard BEFORE using old_head -> hazard must be set BEFORE any dereference becomes “unsafe window”
             // So, publish immediately after loading old_head.
             hp.set_hazard(old_head); //Same as ebr.enter_epoch()
@@ -136,7 +137,7 @@ public:
                 out = old_head->data;
 
                 //delete old_head
-                // Hazard Pointer-3:
+                // Hazard Pointer-4:
                 //Instead of delete, retire old_head
                 // Safe memory reclamation
                 hp.retire_node(old_head);
@@ -144,7 +145,7 @@ public:
                 return true;
              }
           
-          // Hazard Pointer-4:
+          // Hazard Pointer-5:
           //Clear hazard in all exit paths
           hp.clear_hazard(); //Same as ebr.leave_epoch()
           
