@@ -55,6 +55,7 @@ public:
 
     LockFreeTreiberMPMCStackHazardPointer() = default;  // Default constructor
     
+    //NO HazarPointer in PUSH() except in POP()
     //:::TIPS: All memory_order_relaxed except CAS success = memory_order_release ::::::
     void push(T const& value) { 
         
