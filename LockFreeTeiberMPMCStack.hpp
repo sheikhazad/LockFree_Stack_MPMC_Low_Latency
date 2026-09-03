@@ -166,7 +166,7 @@ public:
         //   (including data & next) are visible after this acquire
         //   So, whole point for using memory_order_acquire is accessing valid old_head->next not just old_head
  
-            Node* old_head = head.load(std::memory_order_acquire);
+            Node* old_head = head.load(std::memory_order_acquire); //(D)
             if (!old_head) 
               return false; 
 
