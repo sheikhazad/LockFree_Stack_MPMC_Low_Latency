@@ -87,7 +87,7 @@ public:
 
         tid = id;
         
-        retired_list.reserve(256);
+        retired_list.reserve(RETIRE_THRESHOLD);
     }
 
 
