@@ -46,6 +46,7 @@ private:
     // ----------------------------
     struct ThreadState
     {
+        //Can be accessed by multiple threads during reclaim()
         std::atomic<uint64_t> epoch;
         std::atomic<bool> active;
 
