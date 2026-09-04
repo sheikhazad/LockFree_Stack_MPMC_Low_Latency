@@ -28,7 +28,7 @@ private:
 
     static constexpr size_t RETIRE_THRESHOLD = 256;
     
-
+    //EBR::ThreadState Style
     struct HazardRecord
     {
         std::atomic<void*> pointer{nullptr};
@@ -36,6 +36,7 @@ private:
 
     HazardRecord records[MAX_THREADS];
 
+    // EBR::RetiredNode Style
     struct RetiredNode
     {
         void* ptr;
@@ -49,7 +50,7 @@ public:
 
     // ----------------------------
     // Init thread once.
-    // Same as EBR::()
+    // Same as EBR
     // ----------------------------
     void init_thread()
     {
@@ -66,7 +67,7 @@ public:
     }
 
     // ----------------------------
-    // Same as EBR::enter_epoch()
+    // EBR::enter_epoch() style
     // ----------------------------
     void set_hazard(void* ptr)
     {
@@ -74,7 +75,7 @@ public:
     }
 
     // ----------------------------
-    // Same as EBR::leave_epoch()
+    // EBR::leave_epoch() style
     // ----------------------------
     void clear_hazard()
     {
