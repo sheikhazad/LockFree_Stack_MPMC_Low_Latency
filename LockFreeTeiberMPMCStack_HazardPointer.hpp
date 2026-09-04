@@ -148,6 +148,7 @@ public:
                 return true;
              }
           
+          // CAS failed
           // Hazard Pointer-5:
           //Clear hazard in all exit paths
           hp.clear_hazard(); //Same as ebr.leave_epoch()
