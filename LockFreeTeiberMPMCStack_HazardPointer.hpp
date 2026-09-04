@@ -142,6 +142,8 @@ public:
                 //Instead of delete, retire old_head
                 // Safe memory reclamation
                 hp.retire_node(old_head);
+
+                hp.clear_hazard();
                
                 return true;
              }
